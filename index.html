@@ -331,10 +331,10 @@
 <div id="modal"></div>
 <div id="toast" aria-live="polite"></div>
 
-<script src="icons.js?v=2fa13426"></script>
+<script src="icons.js?v=f4f1b867"></script>
 <script>
 'use strict';
-const APP_VERSION = '2fa13426'; // setzt tools/embed-assets.py
+const APP_VERSION = 'f4f1b867'; // setzt tools/embed-assets.py
 
 /* ==========================================================================
    Speicher-Schnittstelle
@@ -628,6 +628,7 @@ function emptyState() {
   return { familyName: 'Unsere Familie', pin: '1234', demo: false, lastClosed: addDays(today(), -1),
            goal: { active:false, name:'Filmabend', target:150 },
            streak: { active:true, every:5, points:10, since:today() },
+           features: { pflicht:true, bonus:true },
            grades: { active:true, points:{ 1:500, 2:200, 3:0, 4:0, 5:0, 6:0 } },
            members: [], tasks: [], rewards: [], taskHistory: [], rewardHistory: [] };
 }
@@ -709,6 +710,7 @@ function isDue(task, day) {
   if (task.rec === 'intervall') return diffDays(day, task.start) % Math.max(1, Number(task.interval)) === 0;
   return true;
 }
+const featureOn = (type, s = state) => s.features?.[type === 'Bonus' ? 'bonus' : 'pflicht'] !== false;
 /* person ist 'alle' (auch künftige Mitglieder), 'offen' (Bonus), eine Liste von
    Mitgliedern oder bei älteren Exporten eine einzelne Mitglieds-ID. */
 const taskPeople = t => Array.isArray(t.person) ? t.person : t.person === 'alle' || t.person === 'offen' ? [] : [t.person];
@@ -717,7 +719,7 @@ function instances(s, day) {
   const out = [];
   const active = s.members.filter(m => m.active);
   for (const task of s.tasks) {
-    if (!isDue(task, day)) continue;
+    if (!isDue(task, day) || !featureOn(task.type, s)) continue;
     const people = task.type === 'Bonus' ? [null]
       : task.person === 'alle' ? active.map(m => m.id)
       : taskPeople(task).filter(id => active.some(m => m.id === id));
@@ -883,9 +885,10 @@ function viewTasks() {
   const open = must.filter(i => !i.h).length + bonus.filter(i => !i.h).length;
   const openOf = id => all.filter(i => !i.h && i.memberId === id).length;
 
+  const pf = featureOn('Pflicht'), bo = featureOn('Bonus');
   const tiles = activeMembers().map(m =>
     `<button class="tile ${f===m.id?'on':''}" style="--c:${esc(m.color)}" data-act="filter" data-id="${m.id}" aria-pressed="${f===m.id}">
-       ${avatar(m)}<span class="name">${esc(m.name)}</span><span class="chip tint">${openOf(m.id)} offen</span></button>`).join('')
+       ${avatar(m)}<span class="name">${esc(m.name)}</span>${pf ? `<span class="chip tint">${openOf(m.id)} offen</span>` : ''}</button>`).join('')
     + `<button class="tile ${f==='alle'?'on':''}" data-act="filter" data-id="alle" aria-pressed="${f==='alle'}">
        <img class="ava" src="${ASSETS['av-family']}" alt=""><span class="name">Alle</span><span class="chip">${all.filter(i=>!i.h).length} offen</span></button>`;
 
@@ -917,10 +920,10 @@ function viewTasks() {
       </div>
     </div>
     <div class="tiles">${tiles}</div>
-    <div class="cols">
-      <section><h2>Pflichtaufgaben</h2><div class="list">${pflichtRows || '<div class="empty">Heute keine Pflichtaufgaben.</div>'}</div></section>
-      <section><h2>Bonusaufgaben</h2><div class="list">${bonusRows || '<div class="empty">Heute keine Bonusaufgaben.</div>'}</div></section>
-    </div>`;
+    ${pf || bo ? `<div class="cols" ${pf && bo ? '' : 'style="grid-template-columns:1fr"'}>
+      ${pf ? `<section><h2>Pflichtaufgaben</h2><div class="list">${pflichtRows || '<div class="empty">Heute keine Pflichtaufgaben.</div>'}</div></section>` : ''}
+      ${bo ? `<section><h2>Bonusaufgaben</h2><div class="list">${bonusRows || '<div class="empty">Heute keine Bonusaufgaben.</div>'}</div></section>` : ''}
+    </div>` : '<div class="empty">Pflicht- und Bonusaufgaben sind in den Einstellungen ausgeschaltet.</div>'}`;
 }
 
 function goalCard() {
@@ -933,7 +936,7 @@ function goalCard() {
     <span class="muted small num">${pts} von ${target} Punkten diese Woche${won ? '' : ` · noch ${target-pts}`}</span></div></div>`;
 }
 function viewRewards() {
-  const run = state.streak?.active ? streaks() : {};
+  const run = state.streak?.active && featureOn('Pflicht') ? streaks() : {};
   const pts = activeMembers().map(m => `
     <div class="account" style="--c:${esc(m.color)}">${avatar(m,'lg')}<span class="name">${esc(m.name)}</span>
       <span class="big">${balance(m.id)}</span><span class="small">Punkte</span>
@@ -987,10 +990,10 @@ function viewStats() {
   return `
     <div class="top"><h1>Statistik</h1></div>
     <div class="grid2">
-      <div class="panel"><h2>Gesamtquote</h2><p class="muted small sub-h">Pflichtaufgaben, letzte 30 Tage</p>
+      ${featureOn('Pflicht') ? `<div class="panel"><h2>Gesamtquote</h2><p class="muted small sub-h">Pflichtaufgaben, letzte 30 Tage</p>
         <div class="donut"><svg viewBox="0 0 180 180" role="img" aria-label="${pct} Prozent erledigt"><circle cx="90" cy="90" r="80" stroke="#E3F0EB"/><circle cx="90" cy="90" r="80" stroke="#216D5D" stroke-linecap="round" stroke-dasharray="${circ*pct/100} ${circ}"/></svg>
         <div><b>${pct}%</b><span class="muted small">erledigt</span></div></div></div>
-      <div class="panel"><h2>Aufgaben je Mitglied</h2><p class="muted small sub-h">Erledigt von fällig, letzte 30 Tage</p>${bars(quote)}</div>
+      <div class="panel"><h2>Aufgaben je Mitglied</h2><p class="muted small sub-h">Erledigt von fällig, letzte 30 Tage</p>${bars(quote)}</div>` : ''}
       <div class="panel"><h2>Rangliste</h2><p class="muted small sub-h">Gesammelte Punkte insgesamt</p>
         <div class="rank">${rank.map((r,i) => `<div><span class="medal m${i+1}">${i+1}</span>${avatar(r.m,'sm')}<span class="t">${esc(r.m.name)}</span><b>${r.v}</b></div>`).join('')}</div></div>
       <div class="panel"><h2>Punkte pro Monat</h2><p class="muted small sub-h">Ganze Familie</p>
@@ -1097,6 +1100,7 @@ function adminFamily() {
   ${activeMembers().map(m => `<tr ${rowAttrs('memberForm', m.id)}>${selTd(m.id)}<td style="width:60px">${avatar(m,'sm')}</td><td>${esc(m.name)}</td><td class="num">${balance(m.id)}</td></tr>`).join('')}
   </tbody></table></div>`;
 }
+const flag_ = (name, on, label, hint) => `<label class="toggle" style="margin-bottom:10px"><input type="checkbox" data-feature="${name}" ${on?'checked':''}><i></i><span>${label}<span class="muted small" style="display:block">${hint}</span></span></label>`;
 function adminSettings() {
   return `<div class="panel narrow"><h2>Allgemein</h2>
     <form data-form="settings">
@@ -1104,24 +1108,26 @@ function adminSettings() {
       <label class="field"><span>Admin-PIN</span><input name="pin" type="password" value="${esc(state.pin)}" inputmode="numeric" pattern="\\d{4,8}" title="4 bis 8 Ziffern" autocomplete="off" required></label>
       <button class="btn">Speichern</button>
     </form></div>
-  <div class="panel narrow"><h2>Familienziel, Schulnoten und Serien</h2>
+  <div class="panel narrow"><h2>Funktionen und Addons</h2>
+    <p class="muted small sub-h">Ausschalten blendet eine Funktion nur aus, alle Daten und Punkte bleiben erhalten.</p>
+    ${flag_('pflicht', featureOn('Pflicht'), 'Pflichtaufgaben', 'Feste Aufgaben für bestimmte Personen')}
+    ${flag_('bonus', featureOn('Bonus'), 'Bonusaufgaben', 'Freiwillige Aufgaben für alle')}
+    ${flag_('grades', state.grades.active, 'Addon Schulnoten', 'Gute Noten mit Punkten belohnen')}
+    ${flag_('goal', state.goal.active, 'Addon Familienziel', 'Gemeinsames Wochenziel auf dem Belohnungsblatt')}
+    ${featureOn('Pflicht') ? flag_('streak', state.streak.active, 'Addon Serien-Bonus', 'Extrapunkte für mehrere Tage in Folge') : ''}
+  </div>
+  ${state.goal.active || (state.streak.active && featureOn('Pflicht')) ? `<div class="panel narrow"><h2>Ziel und Serien einstellen</h2>
     <form data-form="extras">
-      ${toggleField('goalActive', state.goal.active, 'Wöchentliches Familienziel')}
-      <p class="muted small" style="margin-top:0">Alle sammeln von Montag bis Sonntag gemeinsam. Das Ziel zieht keine Punkte ab, die Belohnung selbst gebt ihr als Familie.</p>
-      <div class="two">
-        <label class="field"><span>Ziel</span><input name="goalName" value="${esc(state.goal.name)}" required></label>
+      ${state.goal.active ? `<div class="two">
+        <label class="field"><span>Familienziel</span><input name="goalName" value="${esc(state.goal.name)}" required></label>
         <div class="field"><span>Punkte pro Woche</span>${stepper('goalTarget', state.goal.target, 1)}</div>
-      </div>
-      ${toggleField('gradesActive', state.grades.active, 'Addon Schulnoten')}
-      <p class="muted small" style="margin-top:0">Zeigt in der Verwaltung den Bereich Schulnoten. Ausschalten blendet ihn nur aus, Noten und Punkte bleiben erhalten.</p>
-      ${toggleField('streakActive', state.streak.active, 'Serien-Bonus')}
-      <p class="muted small" style="margin-top:0">Wer an mehreren Tagen in Folge alle Pflichtaufgaben schafft, bekommt Extrapunkte. Änderungen gelten ab heute.</p>
-      <div class="two">
-        <div class="field"><span>Alle wie viele Tage?</span>${stepper('streakEvery', state.streak.every, 2)}</div>
+      </div>` : ''}
+      ${state.streak.active && featureOn('Pflicht') ? `<div class="two">
+        <div class="field"><span>Serie alle wie viele Tage?</span>${stepper('streakEvery', state.streak.every, 2)}</div>
         <div class="field"><span>Bonuspunkte</span>${stepper('streakPoints', state.streak.points, 0)}</div>
-      </div>
+      </div><p class="muted small" style="margin-top:0">Änderungen an der Serie gelten ab heute.</p>` : ''}
       <button class="btn">Speichern</button>
-    </form></div>
+    </form></div>` : ''}
   <div class="panel narrow"><h2>Daten exportieren und importieren</h2>
     <p class="muted">Die Daten liegen nur auf diesem Gerät. Mit dem Export sicherst du sie als Datei oder gibst sie an ein anderes Gerät weiter, zum Beispiel per AirDrop. Der Import ersetzt alle Daten auf dem Gerät, auch die PIN. Die Datei enthält alles im Klartext, auch Profilfotos.</p>
     <div class="actions nowrap-start">
@@ -1196,13 +1202,14 @@ async function readPhoto(file) {
 
 function presetPicker(kind) {
   const task = kind === 'task', list = task ? PRESETS : REWARD_PRESETS;
-  const cats = [...new Set(list.map(p => p.cat))];
+  const shown = p => !task || featureOn(p.type);
+  const cats = [...new Set(list.filter(shown).map(p => p.cat))];
   const have = new Set((task ? state.tasks : state.rewards).map(t => plainName(t.name)));
   modal(`<h2>${task ? 'Neue Aufgabe' : 'Neue Belohnung'}</h2>${closeX}
     <button class="btn ghost wide" data-act="presetBlank" data-kind="${kind}" style="margin-bottom:12px">${ic('plus')}${task ? 'Eigene Aufgabe' : 'Eigene Belohnung'} anlegen</button>
     <label class="field"><span>Oder Vorlage suchen</span><input id="presetSearch" type="search" placeholder="${task ? 'zum Beispiel Fenster' : 'zum Beispiel Zoo'}" autocomplete="off"></label>
     ${cats.map(c => `<section class="preset-cat"><h3>${esc(c)}</h3><div class="presets">
-      ${list.filter(p => p.cat === c).map(p => `<button class="preset" data-act="presetUse" data-kind="${kind}" data-i="${list.indexOf(p)}" data-n="${esc(p.name.toLowerCase())}">
+      ${list.filter(p => p.cat === c && shown(p)).map(p => `<button class="preset" data-act="presetUse" data-kind="${kind}" data-i="${list.indexOf(p)}" data-n="${esc(p.name.toLowerCase())}">
         ${thumb(p.icon)}<b>${esc(p.name)}</b><span class="muted">${have.has(p.name) ? 'schon angelegt' : task ? `${p.points} P · ${p.type}` : `${p.cost} P`}</span></button>`).join('')}
     </div></section>`).join('')}
     <div class="empty hidden" id="presetNone">Keine Vorlage gefunden. Lege sie als eigene ${task ? 'Aufgabe' : 'Belohnung'} an.</div>`);
@@ -1211,11 +1218,14 @@ function taskForm(id, preset) {
   const { re, cat, ...fill } = preset ?? {};
   const t = state.tasks.find(x => x.id === id) || { active:true, name:'', type:'Pflicht', person:[], points:1, rec:'taeglich', interval:3, weekday:1, times:1, ...fill };
   const days = [1,2,3,4,5,6,0];
+  const onTypes = ['Pflicht','Bonus'].filter(v => featureOn(v) || (id && t.type === v));
+  const types = onTypes.length ? onTypes : ['Pflicht','Bonus'];
+  if (!types.includes(t.type)) t.type = types[0];
   modal(`<h2>${id?'Aufgabe bearbeiten':'Neue Aufgabe'}</h2>${closeX}<form data-form="modal">
     ${toggleField('active', t.active, 'Aktiv')}
     <label class="field"><span>Aufgabe</span><input name="name" value="${esc(t.name)}" required></label>
     <div class="field"><span>Typ</span><div class="pickers text solid">
-      ${['Pflicht','Bonus'].map(v => `<label><input type="radio" name="type" value="${v}" ${t.type===v?'checked':''}><i>${v}</i></label>`).join('')}</div></div>
+      ${types.map(v => `<label><input type="radio" name="type" value="${v}" ${t.type===v?'checked':''}><i>${v}</i></label>`).join('')}</div></div>
     <div class="field" id="f-person"><span>Für wen?</span>
       <div class="pickers text">
         <label><input type="checkbox" name="everyone" ${t.person==='alle'?'checked':''}><i><img class="ava" src="${ASSETS['av-family']}" alt="">Alle</i></label>
@@ -1575,10 +1585,11 @@ document.addEventListener('submit', e => {
     state.grades = { ...state.grades, points:Object.fromEntries([1,2,3,4,5,6].map(n => [n, number(fd.get('p'+n))])) };
     save(); render(); toast('Gespeichert');
   } else if (kind === 'extras') {
-    state.grades = { ...state.grades, active:fd.has('gradesActive') };
-    state.goal = { active:fd.has('goalActive'), name:fd.get('goalName').trim(), target:Math.max(1, number(fd.get('goalTarget'))) };
-    const st = state.streak, every = Math.max(2, number(fd.get('streakEvery'))), points = number(fd.get('streakPoints')), active = fd.has('streakActive');
-    if (active !== st.active || every !== st.every || points !== st.points) state.streak = { active, every, points, since:today() };
+    if (fd.has('goalName')) state.goal = { ...state.goal, name:fd.get('goalName').trim(), target:Math.max(1, number(fd.get('goalTarget'))) };
+    if (fd.has('streakEvery')) {
+      const st = state.streak, every = Math.max(2, number(fd.get('streakEvery'))), points = number(fd.get('streakPoints'));
+      if (every !== st.every || points !== st.points) state.streak = { ...st, every, points, since:today() };
+    }
     save(); render(); toast('Gespeichert');
   } else if (kind === 'settings') {
     state.familyName = fd.get('familyName').trim(); state.pin = fd.get('pin').trim(); save(); render(); toast('Gespeichert');
@@ -1596,6 +1607,17 @@ document.addEventListener('input', e => {
   $('#presetNone').classList.toggle('hidden', hits > 0);
 });
 document.addEventListener('change', async e => {
+  const feature = e.target.dataset?.feature;
+  if (feature) {
+    const on = e.target.checked;
+    if (feature === 'pflicht' || feature === 'bonus') state.features = { ...state.features, [feature]:on };
+    if (feature === 'grades') state.grades = { ...state.grades, active:on };
+    if (feature === 'goal') state.goal = { ...state.goal, active:on };
+    if (feature === 'streak') state.streak = { ...state.streak, active:on, since:today() };
+    if (feature === 'bonus' || feature === 'pflicht') ui.filter = 'alle';
+    save(); render(); toast(on ? 'Eingeschaltet' : 'Ausgeschaltet');
+    return;
+  }
   if (e.target.matches('[data-photo]') && e.target.files[0]) {
     try { photoDraft = await readPhoto(e.target.files[0]); photoRefresh(modal.photoBase); }
     catch { toast('Dieses Foto konnte nicht gelesen werden', '', true); }
