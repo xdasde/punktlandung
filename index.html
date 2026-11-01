@@ -250,6 +250,23 @@
   .pickers.solid input:checked + i { background: var(--primary); color: #fff; }
   .pickers input:focus-visible + i { outline: 3px solid var(--primary); outline-offset: 2px; }
   .tl-time { font-size: 13.5px; color: var(--gray); font-weight: 600; font-variant-numeric: tabular-nums; }
+  .rail { position: relative; margin-bottom: 26px; --tw: 66px; }
+  .rail::before { content: ""; position: absolute; left: calc(var(--tw) + 17.5px); top: 6px; bottom: 6px; width: 3px; background: #DAD3C5; border-radius: 2px; }
+  .tl-mark { position: relative; height: 26px; display: flex; align-items: center; }
+  .tl-mark span { width: var(--tw); text-align: right; font-size: 13px; color: var(--gray); font-weight: 600; }
+  .tl-item { position: relative; display: grid; grid-template-columns: var(--tw) 22px minmax(0, 1fr); gap: 0 8px; align-items: center; }
+  .tl-when { text-align: right; line-height: 1.15; min-width: 0; }
+  .tl-when b { display: block; font-size: 16px; font-weight: 650; font-variant-numeric: tabular-nums; }
+  .tl-when span { display: block; font-size: 12px; color: var(--gray); }
+  .tl-dot { position: relative; z-index: 1; width: 22px; height: 22px; border-radius: 50%; background: #fff; border: 3px solid #C3C8CF; display: flex; align-items: center; justify-content: center; color: #fff; justify-self: center; }
+  .tl-dot svg { font-size: 11px; stroke-width: 3.5; }
+  .tl-item.done .tl-dot { background: var(--primary); border-color: var(--primary); }
+  .tl-item.late .tl-dot { border-color: var(--coral); background: #FDE3E0; }
+  .tl-item.late .tl-when span { color: #A83A2C; font-weight: 600; }
+  .tl-now { position: relative; display: grid; grid-template-columns: var(--tw) 22px 1fr; gap: 0 8px; align-items: center; color: #A83A2C; font-weight: 650; font-size: 14px; min-height: 26px; }
+  .tl-now span { text-align: right; font-variant-numeric: tabular-nums; }
+  .tl-now i { position: relative; z-index: 1; width: 14px; height: 14px; border-radius: 50%; background: var(--coral); justify-self: center; box-shadow: 0 0 0 4px rgba(247,139,127,.3); }
+  .tl-now b { font-weight: 650; }
   .timeline { display: grid; grid-template-columns: 54px 1fr; gap: 8px 10px; align-items: center; margin-bottom: 22px; }
   .timeline .hour { text-align: right; font-weight: 650; font-variant-numeric: tabular-nums; font-size: 15px; }
   .timeline .now { grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; color: #A83A2C; font-weight: 650; font-size: 14px; }
@@ -375,6 +392,9 @@
     .actions .btn { flex: 1; }
     .actions .left { flex: 0 0 100%; margin: 0; order: 3; }
     .feed div { font-size: 15.5px; }
+    .rail { --tw: 56px; }
+    .rail .thumb { width: 34px; height: 34px; }
+    .rail .row { gap: 8px; padding-left: 12px; }
     .selbar b { flex: 0 0 100%; }
     .selbar .btn { flex: 1; }
     .selpad { height: 118px; }
@@ -403,10 +423,10 @@
 <div id="modal"></div>
 <div id="toast" aria-live="polite"></div>
 
-<script src="icons.js?v=449643a3"></script>
+<script src="icons.js?v=19896b83"></script>
 <script>
 'use strict';
-const APP_VERSION = '449643a3'; // setzt tools/embed-assets.py
+const APP_VERSION = '19896b83'; // setzt tools/embed-assets.py
 
 /* ==========================================================================
    Speicher-Schnittstelle
@@ -736,13 +756,13 @@ function demoState() {
   const task = (id,name,type,person,points,rec='taeglich',extra={}) =>
     ({ id,name,type,person,points,rec,interval:3,weekday:3,times:1,active:true,start:t0,...extra });
   s.tasks = [
-    task('t1','Zähne putzen','Pflicht','m3',1,'taeglich',{times:2}),
-    task('t2','Schulranzen packen','Pflicht','m3',2),
-    task('t3','Bett machen','Pflicht',['m3','m4'],1),
-    task('t4','Zähne putzen','Pflicht','m4',1,'taeglich',{times:2}),
-    task('t5','Spülmaschine ausräumen','Pflicht','m1',2),
-    task('t6','Wäsche aufhängen','Pflicht','m2',2),
-    task('t7','Müll rausbringen','Bonus','offen',5),
+    task('t1','Zähne putzen','Pflicht','m3',1,'taeglich',{times:2,time:'07:15'}),
+    task('t2','Schulranzen packen','Pflicht','m3',2,'taeglich',{time:'07:30'}),
+    task('t3','Bett machen','Pflicht',['m3','m4'],1,'taeglich',{time:'07:45'}),
+    task('t4','Zähne putzen','Pflicht','m4',1,'taeglich',{times:2,time:'07:15'}),
+    task('t5','Spülmaschine ausräumen','Pflicht','m1',2,'taeglich',{time:'18:30'}),
+    task('t6','Wäsche aufhängen','Pflicht','m2',2,'taeglich',{time:'17:00'}),
+    task('t7','Müll rausbringen','Bonus','offen',5,'taeglich',{time:'16:00'}),
     task('t8','Saugen','Bonus','offen',20),
     task('t9','Tisch abräumen','Bonus','offen',2,'taeglich',{times:3}),
     task('t10','Biomüll','Bonus','offen',10,'wochentag',{weekday:3}),
@@ -776,8 +796,9 @@ function demoState() {
   // Für heute schon etwas erledigt
   const inst = instances(s, today());
   const pick = (tid) => inst.find(i => i.task.id === tid);
-  if (pick('t2')) s.taskHistory.push(entry(today(), pick('t2'), 'm3', true));
-  if (pick('t7')) s.taskHistory.push(entry(today(), pick('t7'), 'm3', true));
+  const at = (h, m) => { const d = new Date(); d.setHours(h, m, 0, 0); return Math.min(d.getTime(), Date.now()); };
+  if (pick('t2')) s.taskHistory.push({ ...entry(today(), pick('t2'), 'm3', true), at:at(7,38) });
+  if (pick('t7')) s.taskHistory.push({ ...entry(today(), pick('t7'), 'm3', true), at:at(15,52) });
   return s;
 }
 
@@ -1100,21 +1121,53 @@ function viewTasks() {
     </div>` : '<div class="empty">Pflicht- und Bonusaufgaben sind in den Einstellungen ausgeschaltet.</div>'}
     <button class="stats-link" data-act="nav" data-v="stats">${ic('chart')}Statistik</button>`;
 }
+/* Zeitstrahl: Erledigtes steht bei der echten Uhrzeit, Offenes bei der geplanten */
+const clock = ms => { const d = new Date(ms); return `${pad(d.getHours())}:${pad(d.getMinutes())}`; };
+const minutes = t => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
 function viewTimeline() {
-  const day = shownDay(), d = dayData(day), f = ui.filter;
-  const items = d.all.filter(i => f === 'alle' || i.memberId === f || i.task.type === 'Bonus');
-  const timed = items.filter(i => i.task.time).sort((a,b) => a.task.time.localeCompare(b.task.time));
-  const rest = items.filter(i => !i.task.time);
+  const day = shownDay(), d = dayData(day), f = ui.filter, isToday = ui.offset === 0;
+  const mine = i => f === 'alle' || i.memberId === f || (i.task.type === 'Bonus' && (!i.h || groupOf(i.h).some(x => x.memberId === f)));
   const now = new Date(), nowText = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
-  let line = '', shownNow = ui.offset !== 0;
-  for (const i of timed) {
-    if (!shownNow && i.task.time > nowText) { line += `<div class="now">Jetzt ${nowText}</div>`; shownNow = true; }
-    line += `<span class="hour">${esc(i.task.time)}</span>${taskRow(i, day, false)}`;
+  const events = [], rest = [];
+  for (const i of d.all.filter(mine)) {
+    if (i.task.unlimited) {
+      const done = state.taskHistory.filter(h => h.date === day && h.taskId === i.task.id && (f === 'alle' || h.memberId === f));
+      const seen = new Set();
+      for (const h of done) {
+        if (seen.has(h.slot)) continue;
+        seen.add(h.slot);
+        const at = h.at ?? h.u;
+        if (!at) continue;
+        const names = done.filter(x => x.slot === h.slot).map(x => who(x.memberId)).join('');
+        events.push({ t:clock(at), state:'done', html:`<div class="row done">${thumb(taskIconId(i.task))}<span class="what"><b>${esc(i.task.name)}</b><span class="sub">${names}</span></span>${pointChip(i.task.points)}</div>` });
+      }
+      if (i.task.time) events.push({ t:i.task.time, state:'open', html:taskRow(i, day, false) }); else rest.push(i);
+      continue;
+    }
+    const at = i.h && (i.h.at ?? i.h.u);
+    if (at) {
+      const plan = i.task.time, t = clock(at);
+      events.push({ t, slot:i.slot, state:'done', plan: plan && plan !== t ? plan : null, html:taskRow(i, day, false) });
+    } else if (i.task.time) {
+      events.push({ t:i.task.time, slot:i.slot, state: i.h ? 'done' : isToday && i.task.time < nowText ? 'late' : 'open', html:taskRow(i, day, false) });
+    } else rest.push(i);
   }
-  if (!shownNow && timed.length) line += `<div class="now">Jetzt ${nowText}</div>`;
+  events.sort((a,b) => a.t.localeCompare(b.t) || (a.slot ?? 0) - (b.slot ?? 0));
+  const items = isToday ? [...events, { t:nowText, state:'now' }].sort((a,b) => a.t.localeCompare(b.t) || (a.state === 'now' ? 1 : -1)) : events;
+  let line = '', lastHour = null, lastMin = null;
+  for (const e of items) {
+    const hour = e.t.slice(0,2), m = minutes(e.t);
+    const gap = lastMin === null ? 0 : Math.min(54, (m - lastMin) * .6);
+    if (hour !== lastHour && e.state !== 'now') { line += `<div class="tl-mark" style="margin-top:${Math.round(gap)}px"><span>${hour} Uhr</span></div>`; }
+    if (e.state === 'now') line += `<div class="tl-now" style="margin-top:${Math.round(gap)}px"><span>${e.t}</span><i></i><b>Jetzt</b></div>`;
+    else line += `<div class="tl-item ${e.state}" ${hour === lastHour ? `style="margin-top:${Math.round(Math.max(8, gap))}px"` : ''}>
+      <div class="tl-when"><b>${e.t}</b>${e.plan ? `<span>Plan ${e.plan}</span>` : e.state === 'late' ? '<span>überfällig</span>' : ''}</div>
+      <span class="tl-dot">${e.state === 'done' ? ic('check') : ''}</span>${e.html}</div>`;
+    lastMin = m; if (e.state !== 'now') lastHour = hour;
+  }
   return `<div class="top"><h1>Zeitstrahl</h1><div class="stats">${dayBar(day)}${syncBtn()}</div></div>
     ${dayNote()}${personTiles(d)}
-    ${timed.length ? `<div class="timeline">${line}</div>` : '<div class="empty" style="margin-bottom:22px">Noch keine Uhrzeiten. Trage sie in der Verwaltung bei den Aufgaben ein.</div>'}
+    ${events.length ? `<div class="rail">${line}</div>` : `<div class="empty" style="margin-bottom:22px">${isToday ? 'Noch nichts erledigt und keine Uhrzeiten geplant.' : 'Für diesen Tag sind keine Uhrzeiten geplant.'} Uhrzeiten trägst du in der Verwaltung bei den Aufgaben ein.</div>`}
     ${rest.length ? `<h2>Ohne Uhrzeit</h2><div class="list">${rest.map(i => taskRow(i, day)).join('')}</div>` : ''}`;
 }
 
@@ -1275,6 +1328,7 @@ function adminRewardHist() {
 }
 /* Neue Einträge oben ergänzen, in Alltagssprache und bei jedem Release */
 const CHANGELOG = [
+  ['1.11', 'Echter Zeitstrahl', ['Zeitstrahl zeigt, wann eine Aufgabe wirklich erledigt wurde','Durchgehende Linie mit echten Zeitabständen und Stunden','Überfällige Aufgaben sind markiert']],
   ['1.10', 'Zusammenlegen', ['Belohnungen gemeinsam einlösen und Punkte zusammenlegen','Die App teilt die Kosten gerecht auf','Als Addon abschaltbar']],
   ['1.9', 'Spaß', ['Konfetti, Sterne und wechselnde Sprüche bei jeder erledigten Aufgabe','Sieben kurze Melodien und große Feiern für besondere Momente','Effekte und Sounds je Gerät abschaltbar']],
   ['1.8', 'Zuverlässigkeit', ['Updates kommen zuverlässiger an, auch auf dem iPad','Knopf „Nach Update suchen“ in den Einstellungen','Verwaltung für iPad hoch- und querkant neu angeordnet']],
@@ -1636,7 +1690,7 @@ function pointHistory(id) {
 }
 function bonusDone(inst, ids) {
   const shared = ids.length > 1, group = shared ? uid() : undefined, points = shared ? sharedPoints(inst.task.points) : Number(inst.task.points);
-  for (const id of ids) state.taskHistory.push({ ...entry(today(), inst, id, true), points, ...(group ? { group } : {}) });
+  for (const id of ids) state.taskHistory.push({ ...entry(today(), inst, id, true), points, at:Date.now(), ...(group ? { group } : {}) });
   save(); render();
   fx.done(ids, points, inst.task);
 }
@@ -2109,7 +2163,7 @@ function toggle(btn) {
   const inst = { task, slot:Number(btn.dataset.slot), memberId: btn.dataset.member || null };
   const h = findEntry(day, inst);
   if (h) { undoTask(h, task); return; }
-  if (task.type === 'Pflicht') { state.taskHistory.push(entry(day, inst, inst.memberId, true)); save(); render(); fx.done([inst.memberId], task.points, task); return; }
+  if (task.type === 'Pflicht') { state.taskHistory.push({ ...entry(day, inst, inst.memberId, true), at:Date.now() }); save(); render(); fx.done([inst.memberId], task.points, task); return; }
   if (task.unlimited || (state.share.active && activeMembers().length > 1)) { shareDialog(inst); return; }
   if (ui.filter !== 'alle') { bonusDone(inst, [ui.filter]); return; }
   whoDidIt(inst);
@@ -2191,7 +2245,7 @@ document.addEventListener('click', e => {
     dayStep() { ui.offset = Math.max(0, ui.offset + Number(el.dataset.d)); render(); },
     dayToday() { ui.offset = 0; render(); },
     undoYes() { const h = modal.undo, all = groupOf(h); state.taskHistory = state.taskHistory.filter(x => !all.includes(x)); closeModal(); save(); render(); fx.undo(); toast('Aufgabe wieder offen', `${all.length > 1 ? 'je ' : ''}-${h.points} Punkte`); },
-    bonusBy() { const i = modal.inst; state.taskHistory.push(entry(today(), i, id, true)); save(); closeModal(); render(); fx.done([id], i.task.points, i.task); },
+    bonusBy() { const i = modal.inst; state.taskHistory.push({ ...entry(today(), i, id, true), at:Date.now() }); save(); closeModal(); render(); fx.done([id], i.task.points, i.task); },
     step() { const i = el.parentNode.querySelector('input'); const next = number(i.value) + Number(el.dataset.d);
       if (next >= number(i.min) && (i.max === '' || next <= number(i.max))) i.value = next; },
     photoDel() { photoDraft = null; photoRefresh(modal.photoBase); },
