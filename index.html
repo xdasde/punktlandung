@@ -261,6 +261,8 @@
   .tl-dot { position: relative; z-index: 1; width: 22px; height: 22px; border-radius: 50%; background: #fff; border: 3px solid #C3C8CF; display: flex; align-items: center; justify-content: center; color: #fff; justify-self: center; }
   .tl-dot svg { font-size: 11px; stroke-width: 3.5; }
   .tl-item.done .tl-dot { background: var(--primary); border-color: var(--primary); }
+  .tl-item.reward .tl-dot { background: var(--honey); border-color: var(--honey); color: var(--ink); }
+  .tl-item.reward .tl-dot svg { stroke-width: 2.4; font-size: 12px; }
   .tl-item.late .tl-dot { border-color: var(--coral); background: #FDE3E0; }
   .tl-item.late .tl-when span { color: #A83A2C; font-weight: 600; }
   .tl-now { position: relative; display: grid; grid-template-columns: var(--tw) 22px 1fr; gap: 0 8px; align-items: center; color: #A83A2C; font-weight: 650; font-size: 14px; min-height: 26px; }
@@ -423,10 +425,10 @@
 <div id="modal"></div>
 <div id="toast" aria-live="polite"></div>
 
-<script src="icons.js?v=19896b83"></script>
+<script src="icons.js?v=ea2061bc"></script>
 <script>
 'use strict';
-const APP_VERSION = '19896b83'; // setzt tools/embed-assets.py
+const APP_VERSION = 'ea2061bc'; // setzt tools/embed-assets.py
 
 /* ==========================================================================
    Speicher-Schnittstelle
@@ -1152,6 +1154,14 @@ function viewTimeline() {
       events.push({ t:i.task.time, slot:i.slot, state: i.h ? 'done' : isToday && i.task.time < nowText ? 'late' : 'open', html:taskRow(i, day, false) });
     } else rest.push(i);
   }
+  const redeemed = state.rewardHistory.filter(h => h.date === day), shown = new Set();
+  for (const h of redeemed) {
+    const all = h.group ? redeemed.filter(x => x.group === h.group) : [h], at = h.at ?? h.u;
+    if (shown.has(h.group ?? h.id) || !at || (f !== 'alle' && !all.some(x => x.memberId === f))) continue;
+    shown.add(h.group ?? h.id);
+    const total = all.reduce((a,x) => a + Number(x.cost), 0);
+    events.push({ t:clock(at), state:'reward', html:`<div class="row">${rewardThumb({ name:h.name })}<span class="what"><b>${esc(plainName(h.name))}</b><span class="sub">${all.map(x => who(x.memberId)).join('')}</span></span><span class="chip bad">-${total} P</span></div>` });
+  }
   events.sort((a,b) => a.t.localeCompare(b.t) || (a.slot ?? 0) - (b.slot ?? 0));
   const items = isToday ? [...events, { t:nowText, state:'now' }].sort((a,b) => a.t.localeCompare(b.t) || (a.state === 'now' ? 1 : -1)) : events;
   let line = '', lastHour = null, lastMin = null;
@@ -1162,7 +1172,7 @@ function viewTimeline() {
     if (e.state === 'now') line += `<div class="tl-now" style="margin-top:${Math.round(gap)}px"><span>${e.t}</span><i></i><b>Jetzt</b></div>`;
     else line += `<div class="tl-item ${e.state}" ${hour === lastHour ? `style="margin-top:${Math.round(Math.max(8, gap))}px"` : ''}>
       <div class="tl-when"><b>${e.t}</b>${e.plan ? `<span>Plan ${e.plan}</span>` : e.state === 'late' ? '<span>überfällig</span>' : ''}</div>
-      <span class="tl-dot">${e.state === 'done' ? ic('check') : ''}</span>${e.html}</div>`;
+      <span class="tl-dot">${e.state === 'done' ? ic('check') : e.state === 'reward' ? ic('gift') : ''}</span>${e.html}</div>`;
     lastMin = m; if (e.state !== 'now') lastHour = hour;
   }
   return `<div class="top"><h1>Zeitstrahl</h1><div class="stats">${dayBar(day)}${syncBtn()}</div></div>
@@ -1328,6 +1338,7 @@ function adminRewardHist() {
 }
 /* Neue Einträge oben ergänzen, in Alltagssprache und bei jedem Release */
 const CHANGELOG = [
+  ['1.12', 'Belohnungen im Zeitstrahl', ['Eingelöste Belohnungen erscheinen mit Uhrzeit im Zeitstrahl','Auch gemeinsam eingelöste Belohnungen stehen dort als ein Eintrag']],
   ['1.11', 'Echter Zeitstrahl', ['Zeitstrahl zeigt, wann eine Aufgabe wirklich erledigt wurde','Durchgehende Linie mit echten Zeitabständen und Stunden','Überfällige Aufgaben sind markiert']],
   ['1.10', 'Zusammenlegen', ['Belohnungen gemeinsam einlösen und Punkte zusammenlegen','Die App teilt die Kosten gerecht auf','Als Addon abschaltbar']],
   ['1.9', 'Spaß', ['Konfetti, Sterne und wechselnde Sprüche bei jeder erledigten Aufgabe','Sieben kurze Melodien und große Feiern für besondere Momente','Effekte und Sounds je Gerät abschaltbar']],
@@ -1739,7 +1750,7 @@ function redeem(r) {
       const ids = fd.getAll('who'), { shares, missing } = splitCost(r.cost, ids);
       if (!ids.length || missing > 0) return false;
       const payers = ids.filter(id => shares[id] > 0), group = payers.length > 1 ? uid() : undefined;
-      for (const id of payers) state.rewardHistory.push({ id:uid(), date:today(), memberId:id, name:r.name, cost:shares[id], ...(group ? { group } : {}) });
+      for (const id of payers) state.rewardHistory.push({ id:uid(), date:today(), memberId:id, name:r.name, cost:shares[id], at:Date.now(), ...(group ? { group } : {}) });
       fx.reward(`${plainName(r.name)} für ${payers.map(mName).join(' und ')}`);
     });
   const f = $('#modal form'), go = $('#redeemGo');
