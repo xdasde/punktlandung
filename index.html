@@ -315,10 +315,10 @@
 <div id="modal"></div>
 <div id="toast" aria-live="polite"></div>
 
-<script src="icons.js?v=da63f761"></script>
+<script src="icons.js?v=7238116e"></script>
 <script>
 'use strict';
-const APP_VERSION = 'da63f761'; // setzt tools/embed-assets.py
+const APP_VERSION = '7238116e'; // setzt tools/embed-assets.py
 
 /* ==========================================================================
    Speicher-Schnittstelle
@@ -1390,10 +1390,18 @@ function toggle(btn) {
   const task = state.tasks.find(t => t.id === btn.dataset.task);
   const inst = { task, slot:Number(btn.dataset.slot), memberId: btn.dataset.member || null };
   const h = findEntry(day, inst);
-  if (h) { state.taskHistory = state.taskHistory.filter(x => x !== h); save(); render(); return; }
+  if (h) { undoTask(h, task); return; }
   if (task.type === 'Pflicht') { state.taskHistory.push(entry(day, inst, inst.memberId, true)); save(); render(); toast('Aufgabe erledigt!', `+${task.points} Punkte`); return; }
   if (ui.filter !== 'alle') { state.taskHistory.push(entry(day, inst, ui.filter, true)); save(); render(); toast(`Aufgabe erledigt, ${mName(ui.filter)}!`, `+${task.points} Punkte`); return; }
   whoDidIt(inst);
+}
+/* Punkte gehen nur nach ausdrücklicher Bestätigung wieder weg */
+function undoTask(h, task) {
+  const n = Number(h.points);
+  modal(`<h2>„${esc(task.name)}“ zurücknehmen?</h2>${closeX}
+    <p class="muted">${esc(mName(h.memberId))} verliert dadurch ${n} ${n === 1 ? 'Punkt' : 'Punkte'}, die Aufgabe ist wieder offen.</p>
+    <div class="actions"><button class="btn ghost" data-act="close">Abbrechen</button><button class="btn coral" data-act="undoYes">Ja, zurücknehmen</button></div>`);
+  modal.undo = h;
 }
 /* iPad: Teilen-Menü (AirDrop, Dateien, Mail). Sonst normaler Download. */
 async function exportData() {
@@ -1430,6 +1438,7 @@ document.addEventListener('click', e => {
     close() { closeModal(); },
     del() { if (!confirm('Wirklich löschen?')) return; modal.del(); save(); closeModal(); render(); },
     redeem() { redeem(state.rewards.find(r => r.id === id)); },
+    undoYes() { const h = modal.undo; state.taskHistory = state.taskHistory.filter(x => x !== h); closeModal(); save(); render(); toast('Aufgabe wieder offen', `-${h.points} Punkte`); },
     bonusBy() { const i = modal.inst; state.taskHistory.push(entry(today(), i, id, true)); save(); closeModal(); render(); toast(`Aufgabe erledigt, ${mName(id)}!`, `+${i.task.points} Punkte`); },
     step() { const i = el.parentNode.querySelector('input'); const next = number(i.value) + Number(el.dataset.d);
       if (next >= number(i.min) && (i.max === '' || next <= number(i.max))) i.value = next; },
