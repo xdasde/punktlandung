@@ -145,8 +145,15 @@
   td span.thumb { font-size: 18px; }
 
   /* Verwaltung */
-  .subnav { display: flex; gap: 6px; overflow-x: auto; margin-bottom: 16px; padding: 2px; }
-  .subnav button { padding: 10px 16px; border-radius: 12px; white-space: nowrap; background: #fff; min-height: 46px; font-weight: 550; }
+  .subnav { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 16px; padding: 2px; }
+  .subnav .btn { margin-left: auto; background: #fff; }
+  @media (min-width: 701px) and (max-width: 1100px) {
+    .cards.list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+  @media (min-width: 701px) { #app .bar-head h1, #app h1.sub-title { font-size: 22px; } }
+  .settings .panel { break-inside: avoid; max-width: none; }
+  @media (min-width: 900px) { .settings { columns: 2; column-gap: 18px; } }
+  .subnav button { padding: 10px 13px; border-radius: 12px; white-space: nowrap; background: #fff; min-height: 46px; font-weight: 550; }
   .subnav button.on { background: var(--primary); color: #fff; }
   .bar-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }
   .bar-head h2 { margin: 0; }
@@ -383,10 +390,10 @@
 <div id="modal"></div>
 <div id="toast" aria-live="polite"></div>
 
-<script src="icons.js?v=7229cca6"></script>
+<script src="icons.js?v=e9862b52"></script>
 <script>
 'use strict';
-const APP_VERSION = '7229cca6'; // setzt tools/embed-assets.py
+const APP_VERSION = 'e9862b52'; // setzt tools/embed-assets.py
 
 /* ==========================================================================
    Speicher-Schnittstelle
@@ -950,6 +957,9 @@ const ui = { view:'tasks', filter:'alle', offset:0, admin:'tasks', adminMenu:tru
 /* Auf dem Handy zeigt die Verwaltung ein Menü und Karten statt Reitern und Tabellen */
 const phoneQuery = matchMedia('(max-width: 700px)');
 const phone = () => phoneQuery.matches;
+/* Bis zur Breite eines iPads im Querformat zeigt die Verwaltung Karten, weil die Tabellen dort nicht passen */
+const compactQuery = matchMedia('(max-width: 1100px)');
+const compact = () => compactQuery.matches;
 /* Mehrfachauswahl in der Verwaltung: ui.sel ist null oder die Menge der gewählten IDs */
 const selOn = id => ui.sel?.has(id);
 const selBox = id => `<span class="selbox ${selOn(id)?'on':''}">${ic('check')}</span>`;
@@ -976,7 +986,7 @@ const listRow = ({ act, id, lead, title, sub, right = '' }) => {
   const inner = `${lead}<span class="what"><b>${title}</b>${sub ? `<span class="sub">${sub}</span>` : ''}</span>${right}${act && !picking ? `<span class="go">${ic('chev')}</span>` : ''}`;
   return act ? `<button class="row ${selOn(id)?'picked':''}" data-act="${act}" ${id ? `data-id="${esc(id)}"` : ''}>${inner}</button>` : `<div class="row">${inner}</div>`;
 };
-const cards = (rows, empty) => rows.length ? `<div class="list">${rows.map(listRow).join('')}</div>` : `<div class="empty">${empty}</div>`;
+const cards = (rows, empty) => rows.length ? `<div class="list cards">${rows.map(listRow).join('')}</div>` : `<div class="empty">${empty}</div>`;
 function save() {
   const added = syncStreakBonus();
   if (added.length && added.some(h => h.date === today())) {
@@ -1155,7 +1165,7 @@ function viewStats() {
   const count = (arr, f) => { const c = {}; arr.forEach(x => c[f(x)] = (c[f(x)]||0)+1);
     return Object.entries(c).sort((a,b) => b[1]-a[1]).slice(0,5).map(([k,v]) => ({ l:`<span style="overflow:hidden;text-overflow:ellipsis">${esc(k)}</span>`, plain:k, v })); };
   return `
-    <button class="back" data-act="nav" data-v="tasks" style="margin-top:0">${ic('back')}Aufgaben</button>
+    <button class="back" data-act="nav" data-v="tasks" style="margin-top:0">${ic('chev')}Aufgaben</button>
     <div class="top"><h1>Statistik</h1></div>
     <div class="grid2">
       ${featureOn('Pflicht') ? `<div class="panel"><h2>Gesamtquote</h2><p class="muted small sub-h">Pflichtaufgaben, letzte 30 Tage</p>
@@ -1194,8 +1204,8 @@ function viewAdmin() {
   const selBtn = canSel && !ui.sel ? `<button class="btn ghost" data-act="selStart">Auswählen</button>` : '';
   if (phone()) return `<div class="sel-start"><button class="back" data-act="adminBack" style="margin:0">${ic('chev')}Verwaltung</button>${selBtn}</div>${body}${selBar()}`;
   return `<div class="top"><h1>Verwaltung</h1><button class="btn ghost" data-act="lock">${ic('lock')}Sperren</button></div>
-    <div class="subnav">${tabs.map(([k,l]) => `<button class="${ui.admin===k?'on':''}" data-act="adminTab" data-v="${k}">${l}</button>`).join('')}</div>
-    ${selBtn ? `<div class="sel-start">${selBtn}</div>` : ''}${body}${selBar()}`;
+    <div class="subnav">${tabs.map(([k,l]) => `<button class="${ui.admin===k?'on':''}" data-act="adminTab" data-v="${k}">${l}</button>`).join('')}${selBtn}</div>
+    ${body}${selBar()}`;
 }
 const recLabel = t => t.rec === 'taeglich' ? 'Täglich' : t.rec === 'wochentag' ? 'Wochentag' : 'Alle X Tage';
 const personLabel = t => t.type === 'Bonus' ? 'Offen' : t.person === 'alle' ? 'Alle' : taskPeople(t).map(id => esc(mName(id))).join(', ');
@@ -1203,7 +1213,7 @@ const activeChip = a => `<span class="chip ${a?'ok':''}">${a?'Ja':'Nein'}</span>
 
 function adminTasks() {
   const empty = 'Noch keine Aufgaben. Lege mit „Neue Aufgabe“ die erste an.';
-  if (phone()) return `<div class="bar-head"><h1>Aufgaben</h1><button class="btn" data-act="taskForm">${ic('plus')}Neu</button></div>
+  if (compact()) return `<div class="bar-head"><h1>Aufgaben</h1><button class="btn" data-act="taskForm">${ic('plus')}Neu</button></div>
     ${cards(state.tasks.map(t => ({ act:'taskForm', id:t.id, lead:thumb(taskIconId(t)), title:esc(t.name),
       sub:`${esc(t.type)} · ${personLabel(t)} · ${t.rec==='wochentag' ? dayLabel(t) : t.rec==='intervall' ? `Alle ${t.interval} Tage` : 'Täglich'}${t.unlimited ? ' · beliebig oft' : t.times>1 ? ` · ${t.times}×` : ''}${t.time ? ` · ${t.time}` : ''}${t.active?'':' · inaktiv'}`,
       right:pointChip(t.points) })), empty)}`;
@@ -1217,7 +1227,7 @@ function adminTasks() {
 }
 function adminRewards() {
   const empty = 'Noch keine Belohnungen. Lege mit „Neue Belohnung“ die erste an.';
-  if (phone()) return `<div class="bar-head"><h1>Belohnungen</h1><button class="btn" data-act="rewardForm">${ic('plus')}Neu</button></div>
+  if (compact()) return `<div class="bar-head"><h1>Belohnungen</h1><button class="btn" data-act="rewardForm">${ic('plus')}Neu</button></div>
     ${cards(state.rewards.map(r => ({ act:'rewardForm', id:r.id, lead:rewardThumb(r), title:esc(plainName(r.name)), sub:r.active?'':'inaktiv', right:`<span class="chip p2">${r.cost} P</span>` })), empty)}`;
   if (!state.rewards.length) return `<div class="panel"><div class="bar-head"><h2>Belohnungen</h2><button class="btn" data-act="rewardForm">${ic('plus')}Neue Belohnung</button></div><div class="empty">${empty}</div></div>`;
   return `<div class="panel"><div class="bar-head"><h2>Belohnungen</h2><button class="btn" data-act="rewardForm">${ic('plus')}Neue Belohnung</button></div>
@@ -1227,7 +1237,7 @@ function adminRewards() {
 }
 function adminTaskHist() {
   const rows = newest(state.taskHistory);
-  if (phone()) return `<h1 style="margin-bottom:6px">Aufgabenhistorie</h1><p class="muted small">Neueste ${rows.length} von ${state.taskHistory.length}</p>
+  if (compact()) return `<h1 class="sub-title" style="margin-bottom:6px">Aufgabenhistorie</h1><p class="muted small">Neueste ${rows.length} von ${state.taskHistory.length}</p>
     ${cards(rows.map(h => ({ act:isTaskEntry(h) ? 'taskHistForm' : null, id:h.id, lead:avatar(member(h.memberId),'sm'), title:esc(histName(h)),
       sub:`${fmtShort(h.date)} · ${esc(mName(h.memberId))}`, right:`<span class="chip ${h.status==='Erledigt'?'ok':'bad'}">${h.status==='Erledigt'?`+${h.points}`:'Offen'}</span>` })), 'Noch keine Einträge.')}`;
   return `<div class="panel"><div class="bar-head"><h2>Aufgabenhistorie</h2><span class="muted small">Neueste ${rows.length} von ${state.taskHistory.length}</span></div>
@@ -1238,7 +1248,7 @@ function adminTaskHist() {
 }
 function adminRewardHist() {
   const rows = newest(state.rewardHistory);
-  if (phone()) return `<h1 style="margin-bottom:12px">Belohnungshistorie</h1>
+  if (compact()) return `<h1 class="sub-title" style="margin-bottom:12px">Belohnungshistorie</h1>
     ${cards(rows.map(h => ({ act:'rewardHistForm', id:h.id, lead:avatar(member(h.memberId),'sm'), title:esc(plainName(h.name)), sub:`${fmtShort(h.date)} · ${esc(mName(h.memberId))}`, right:`<span class="chip bad">-${h.cost}</span>` })), 'Noch keine Einträge.')}`;
   return `<div class="panel"><div class="bar-head"><h2>Belohnungshistorie</h2></div>
   <div class="scroll"><table><thead><tr>${selTh()}<th>Datum</th><th>Person</th><th>Belohnung</th><th class="num">Kosten</th></tr></thead><tbody>
@@ -1253,7 +1263,7 @@ function adminGrades() {
     <form data-form="gradePoints"><div class="grade-points">
       ${[1,2,3,4,5,6].map(n => `<div class="field"><span>Note ${n}</span>${stepper('p'+n, state.grades.points[n] ?? 0, 0)}</div>`).join('')}
     </div><button class="btn">Speichern</button></form></div>`;
-  if (phone()) return `<div class="bar-head"><h1>Schulnoten</h1><button class="btn" data-act="gradeForm">${ic('plus')}Neu</button></div>
+  if (compact()) return `<div class="bar-head"><h1>Schulnoten</h1><button class="btn" data-act="gradeForm">${ic('plus')}Neu</button></div>
     ${cards(rows.map(h => ({ act:'gradeForm', id:h.id, lead:avatar(member(h.memberId),'sm'), title:`${esc(h.subject)}: Note ${esc(h.grade)}`,
       sub:`${fmtShort(h.date)} · ${esc(mName(h.memberId))}`, right:`<span class="chip ok">+${h.points}</span>` })), empty)}${points}`;
   return `<div class="panel"><div class="bar-head"><h2>Schulnoten</h2><button class="btn" data-act="gradeForm">${ic('plus')}Note eintragen</button></div>
@@ -1262,7 +1272,7 @@ function adminGrades() {
     </tbody></table></div>` : `<div class="empty">${empty}</div>`}</div>${points}`;
 }
 function adminFamily() {
-  if (phone()) return `<div class="bar-head"><h1>Familie</h1><button class="btn" data-act="memberForm">${ic('plus')}Neu</button></div>
+  if (compact()) return `<div class="bar-head"><h1>Familie</h1><button class="btn" data-act="memberForm">${ic('plus')}Neu</button></div>
     ${cards(activeMembers().map(m => ({ act:'memberForm', id:m.id, lead:avatar(m,'sm'), title:esc(m.name), sub:`${balance(m.id)} Punkte` })), 'Noch keine Mitglieder.')}`;
   return `<div class="panel"><div class="bar-head"><h2>Familie</h2><button class="btn" data-act="memberForm">${ic('plus')}Mitglied hinzufügen</button></div>
   <table><thead><tr>${selTh()}<th></th><th>Name</th><th class="num">Punkte</th></tr></thead><tbody>
@@ -1271,7 +1281,7 @@ function adminFamily() {
 }
 const flag_ = (name, on, label, hint) => `<label class="toggle" style="margin-bottom:10px"><input type="checkbox" data-feature="${name}" ${on?'checked':''}><i></i><span>${label}<span class="muted small" style="display:block">${hint}</span></span></label>`;
 function adminSettings() {
-  return `<div class="panel narrow"><h2>Allgemein</h2>
+  return `<div class="settings"><div class="panel narrow"><h2>Allgemein</h2>
     <form data-form="settings">
       <label class="field"><span>Name der Familie</span><input name="familyName" value="${esc(state.familyName)}" required></label>
       <label class="field"><span>Admin-PIN</span><input name="pin" type="password" value="${esc(state.pin)}" inputmode="numeric" pattern="\\d{4,8}" title="4 bis 8 Ziffern" autocomplete="off" required></label>
@@ -1316,7 +1326,7 @@ function adminSettings() {
       <button class="btn ghost" data-act="resetDemo">Demodaten neu laden</button>
       <button class="btn danger" data-act="wizStart">Neu einrichten</button>
     </div></div>
-  <p class="muted small">Version ${APP_VERSION}. Updates werden automatisch installiert.</p>`;
+  <p class="muted small">Version ${APP_VERSION}. Updates werden automatisch installiert.</p></div>`;
 }
 
 /* --------- Dialoge --------- */
@@ -2100,7 +2110,7 @@ document.addEventListener('touchend', e => {
   const next = Math.max(0, ui.offset + (dx > 0 ? 1 : -1));
   if (next !== ui.offset) { ui.offset = next; render(); }
 }, { passive:true });
-phoneQuery.addEventListener('change', () => { if (!$('#modal').innerHTML) render(); });
+[phoneQuery, compactQuery].forEach(q => q.addEventListener('change', () => { if (!$('#modal').innerHTML) render(); }));
 
 // Tablet bleibt über Nacht an: Datumswechsel erkennen
 setInterval(() => { if (ui.day !== today()) { ui.day = today(); closeDays(); render(); } }, 60000);
