@@ -148,6 +148,14 @@
   .swatches i { display: block; width: 42px; height: 42px; border-radius: 50%; border: 3px solid transparent; }
   .swatches input:checked + i { border-color: var(--ink); }
   .swatches input:focus-visible + i { outline: 3px solid var(--accent); outline-offset: 2px; }
+  .emojis { display: flex; gap: 6px; flex-wrap: wrap; }
+  .emojis label { cursor: pointer; }
+  .emojis input { position: absolute; opacity: 0; }
+  .emojis i { display: flex; align-items: center; justify-content: center; width: 50px; height: 50px; font-size: 27px; font-style: normal; border-radius: 12px; border: 2px solid var(--line); }
+  .emojis input:checked + i { border-color: var(--accent); background: var(--accent-soft); }
+  .emojis input:focus-visible + i { outline: 3px solid var(--accent); outline-offset: 2px; }
+  .demo-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; background: var(--accent-soft); border-radius: 14px; padding: 10px 14px; margin-bottom: 16px; }
+  .steps { font-size: 15px; color: var(--muted); margin-bottom: 4px; }
   .hidden { display: none !important; }
 
   .toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(92px + env(safe-area-inset-bottom)); background: var(--ink); color: #fff; padding: 11px 18px; border-radius: 12px; z-index: 20; }
@@ -197,17 +205,29 @@ const $ = s => document.querySelector(s);
 
 /* --------- Demodaten --------- */
 function emptyState() {
-  return { familyName: 'Unsere Familie', pin: '1234', lastClosed: addDays(today(), -1),
+  return { familyName: 'Unsere Familie', pin: '1234', demo: false, lastClosed: addDays(today(), -1),
            members: [], tasks: [], rewards: [], taskHistory: [], rewardHistory: [] };
 }
+const sampleRewards = () => [
+  ['🍦 Eis',25],['🎮 30 Minuten Switch',40],['🧸 Kleine Überraschung',50],['🍕 Lieblingsessen',75],
+  ['🍿 Kinoabend',100],['🛍️ 10€ Wunschbudget',250],['🎳 Familienausflug auswählen',500],
+].map(([name,cost],i) => ({ id:'r'+i, name, cost, active:true }));
+/* Beispielaufgaben für die Einrichtung, ohne Bezug zu einzelnen Personen */
+const sampleTasks = () => [
+  ['Bett machen','Pflicht','alle',1,1,'taeglich'],['Zähne putzen','Pflicht','alle',1,2,'taeglich'],
+  ['Müll rausbringen','Bonus','offen',5,1,'taeglich'],['Tisch abräumen','Bonus','offen',2,3,'taeglich'],
+  ['Saugen','Bonus','offen',20,1,'intervall'],
+].map(([name,type,person,points,times,rec],i) =>
+  ({ id:'t'+i, name, type, person, points, times, rec, interval:3, weekday:1, active:true, start:today() }));
 function demoState() {
   const s = emptyState();
+  s.demo = true;
   const t0 = addDays(today(), -90);
   s.members = [
-    { id:'m1', name:'Alex',   emoji:'👨', color:COLORS[0], active:true },
+    { id:'m1', name:'Alex', emoji:'👨', color:COLORS[0], active:true },
     { id:'m2', name:'Sam', emoji:'👩', color:COLORS[1], active:true },
     { id:'m3', name:'Mia', emoji:'🐼', color:COLORS[2], active:true },
-    { id:'m4', name:'Leo',    emoji:'🐰', color:COLORS[3], active:true },
+    { id:'m4', name:'Leo', emoji:'🐰', color:COLORS[3], active:true },
   ];
   const task = (id,name,type,person,points,rec='taeglich',extra={}) =>
     ({ id,name,type,person,points,rec,interval:3,weekday:3,times:1,active:true,start:t0,...extra });
@@ -224,10 +244,7 @@ function demoState() {
     task('t10','Biomüll','Bonus','offen',10,'wochentag',{weekday:3}),
     task('t11','Blumen gießen','Bonus','offen',5,'intervall',{interval:3}),
   ];
-  s.rewards = [
-    ['🍦 Eis',25],['🎮 30 Minuten Switch',40],['🧸 Kleine Überraschung',50],['🍕 Lieblingsessen',75],
-    ['🍿 Kinoabend',100],['🛍️ 10€ Wunschbudget',250],['🎳 Familienausflug auswählen',500],
-  ].map(([name,cost],i) => ({ id:'r'+i, name, cost, active:true }));
+  s.rewards = sampleRewards();
 
   // Reproduzierbare Beispiel-Historie der letzten 90 Tage
   let seed = 42; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
@@ -364,6 +381,8 @@ function viewTasks() {
 
   if (!activeMembers().length) return `<h1>${esc(state.familyName)}</h1><div class="empty" style="margin-top:16px">Noch keine Familienmitglieder. Lege sie unter ⚙️ Verwaltung → Familie an.</div>`;
   return `
+    ${state.demo ? `<div class="demo-bar"><span>Das sind Beispieldaten. Deine Daten bleiben nur auf diesem Gerät.</span>
+      <button class="btn" data-act="wizStart">Eigene Familie einrichten</button></div>` : ''}
     <div class="top">
       <h1>${esc(state.familyName)}</h1>
       <div class="stats">
@@ -443,7 +462,7 @@ function viewAdmin() {
     <div class="top"><h1>Verwaltung ⚙️</h1></div>
     <div class="panel" style="max-width:420px">
       <h2>Nur für Erwachsene</h2>
-      <p class="muted">Bitte PIN eingeben. Im Mockup ist sie <b>1234</b>.</p>
+      <p class="muted">Bitte PIN eingeben.${state.demo ? ' In den Beispieldaten ist sie <b>1234</b>.' : ''}</p>
       <form data-form="unlock">
         <label class="field"><span>PIN</span><input name="pin" type="password" inputmode="numeric" autocomplete="off"></label>
         <button class="btn">Entsperren</button>
@@ -497,7 +516,7 @@ function adminSettings() {
   return `<div class="panel" style="max-width:560px"><h2>Allgemein</h2>
     <form data-form="settings">
       <label class="field"><span>Name der Familie</span><input name="familyName" value="${esc(state.familyName)}" required></label>
-      <label class="field"><span>Admin-PIN</span><input name="pin" value="${esc(state.pin)}" inputmode="numeric" required></label>
+      <label class="field"><span>Admin-PIN</span><input name="pin" type="password" value="${esc(state.pin)}" inputmode="numeric" pattern="\\d{4,8}" title="4 bis 8 Ziffern" autocomplete="off" required></label>
       <button class="btn">Speichern</button>
     </form></div>
   <div class="panel" style="max-width:560px"><h2>Datensicherung</h2>
@@ -510,7 +529,7 @@ function adminSettings() {
   <div class="panel" style="max-width:560px"><h2>Daten</h2>
     <div class="actions" style="justify-content:flex-start;margin:0">
       <button class="btn ghost" data-act="resetDemo">Demodaten neu laden</button>
-      <button class="btn danger" data-act="resetEmpty">Alles löschen und leer starten</button>
+      <button class="btn danger" data-act="wizStart">Neu einrichten</button>
     </div></div>`;
 }
 
@@ -520,11 +539,82 @@ function modal(html, submit) {
   onSubmit = submit || null;
   $('#modal').innerHTML = `<div class="veil" data-act="veil"><div class="modal" role="dialog" aria-modal="true">${html}</div></div>`;
 }
-function closeModal() { $('#modal').innerHTML = ''; onSubmit = null; }
+function closeModal() { $('#modal').innerHTML = ''; onSubmit = null; wiz = null; }
 function toast(msg) {
   $('#toast').innerHTML = `<div class="toast">${esc(msg)}</div>`;
   clearTimeout(toast.t); toast.t = setTimeout(() => $('#toast').innerHTML = '', 2600);
 }
+
+/* --------- Geführte Einrichtung ---------
+   Der bisherige Stand wird erst im letzten Schritt ersetzt, Abbrechen ist also gefahrlos. */
+let wiz = null;
+function wizStart() {
+  wiz = { step:1, familyName: state.demo ? '' : state.familyName, members:[], pin:'', samples:true };
+  wizRender();
+}
+function wizRender() {
+  const w = wiz, emojiFree = EMOJIS.find(e => !w.members.some(m => m.emoji === e)) ?? EMOJIS[0];
+  const nav = (next) => `<div class="actions">
+    <button type="button" class="btn ghost left" data-act="close">Abbrechen</button>
+    ${w.step > 1 ? '<button type="button" class="btn ghost" data-act="wizBack">Zurück</button>' : ''}
+    <button class="btn">${next}</button></div>`;
+  const body = {
+    1: `<h2>Wie heißt eure Familie?</h2>
+        <label class="field"><span>Name</span><input name="familyName" value="${esc(w.familyName)}" placeholder="Familie Muster" required></label>
+        ${nav('Weiter')}`,
+    2: `<h2>Wer macht mit?</h2>
+        ${w.members.length ? `<div class="list" style="margin-bottom:14px">${w.members.map((m,i) => `<div class="row"><span class="emo">${esc(m.emoji)}</span><span class="what"><b>${esc(m.name)}</b></span>
+          <button type="button" class="btn ghost" data-act="wizDel" data-i="${i}" aria-label="${esc(m.name)} entfernen">Entfernen</button></div>`).join('')}</div>` : ''}
+        <label class="field"><span>Name</span><input name="name" autocomplete="off"></label>
+        <div class="field"><span>Symbol</span><div class="emojis">${EMOJIS.map(e => `<label><input type="radio" name="emoji" value="${e}" ${e===emojiFree?'checked':''}><i>${e}</i></label>`).join('')}</div></div>
+        <button type="button" class="btn ghost" data-act="wizAdd">+ Hinzufügen</button>
+        ${nav('Weiter')}`,
+    3: `<h2>PIN für die Verwaltung</h2>
+        <p class="muted">Mit der PIN schützt ihr Aufgaben, Punkte und Historie vor Änderungen. Sie lässt sich nicht zurückholen, also merkt sie euch gut.</p>
+        <div class="two">
+          <label class="field"><span>PIN (4 bis 8 Ziffern)</span><input name="pin" type="password" inputmode="numeric" pattern="\\d{4,8}" title="4 bis 8 Ziffern" autocomplete="off" required></label>
+          <label class="field"><span>PIN wiederholen</span><input name="pin2" type="password" inputmode="numeric" autocomplete="off" required></label>
+        </div>
+        ${nav('Weiter')}`,
+    4: `<h2>Fast fertig</h2>
+        <p class="muted">${esc(w.familyName)} mit ${w.members.length} ${w.members.length === 1 ? 'Person' : 'Personen'}.</p>
+        <label class="check"><input type="checkbox" name="samples" ${w.samples?'checked':''}> Beispielaufgaben und Belohnungen übernehmen</label>
+        ${state.demo ? '<p class="muted small">Die Beispieldaten werden dabei gelöscht.</p>' : '<p class="muted small" style="color:var(--miss-ink)">Alle bisherigen Daten auf diesem Gerät werden dabei gelöscht.</p>'}
+        ${nav('Einrichtung abschließen')}`,
+  }[w.step];
+  modal(`<div class="steps">Schritt ${w.step} von 4</div><form data-form="wiz">${body}</form>`);
+  $('#modal input:not([type=radio]):not([type=checkbox])')?.focus();
+}
+function wizAddMember(form) {
+  const name = form.name.value.trim();
+  if (!name) return false;
+  const color = COLORS[wiz.members.length % COLORS.length];
+  wiz.members.push({ id:uid(), name, emoji:form.emoji.value, color, active:true });
+  return true;
+}
+function wizSubmit(form, fd) {
+  const w = wiz;
+  if (w.step === 1) w.familyName = fd.get('familyName').trim();
+  if (w.step === 2) {
+    wizAddMember(form); // Name eingetippt, aber nicht hinzugefügt
+    if (!w.members.length) { toast('Bitte mindestens eine Person eintragen'); return; }
+  }
+  if (w.step === 3) {
+    if (fd.get('pin') !== fd.get('pin2')) { toast('Die PINs stimmen nicht überein'); return; }
+    w.pin = fd.get('pin');
+  }
+  if (w.step === 4) {
+    const samples = fd.has('samples');
+    state = { ...emptyState(), familyName:w.familyName, pin:w.pin, members:w.members,
+              tasks: samples ? sampleTasks() : [], rewards: samples ? sampleRewards() : [] };
+    closeModal(); save();
+    Object.assign(ui, { view:'tasks', filter:'alle', unlocked:false });
+    render(); toast('Einrichtung abgeschlossen');
+    return;
+  }
+  w.step++; wizRender();
+}
+
 const formButtons = (del) => `<div class="actions">
   ${del ? '<button type="button" class="btn danger left" data-act="del">Löschen</button>' : ''}
   <button type="button" class="btn ghost" data-act="close">Abbrechen</button><button class="btn">Speichern</button></div>`;
@@ -652,7 +742,7 @@ document.addEventListener('click', e => {
   const el = e.target.closest('[data-act]');
   if (!el) return;
   const a = el.dataset.act, id = el.dataset.id;
-  if (a === 'veil') { if (e.target === el) closeModal(); return; }
+  if (a === 'veil') { if (e.target === el && !wiz) closeModal(); return; }
   const acts = {
     nav() { ui.view = el.dataset.v; render(); },
     filter() { ui.filter = id; render(); },
@@ -674,7 +764,10 @@ document.addEventListener('click', e => {
       setTimeout(() => URL.revokeObjectURL(url), 10000);
     },
     resetDemo() { if (confirm('Alle Daten durch Demodaten ersetzen?')) { state = demoState(); save(); ui.filter='alle'; render(); } },
-    resetEmpty() { if (confirm('Wirklich alle Daten löschen?')) { state = emptyState(); save(); ui.filter='alle'; render(); } },
+    wizStart() { wizStart(); },
+    wizBack() { wiz.step--; wizRender(); },
+    wizAdd() { const f = $('#modal form'); if (wizAddMember(f)) wizRender(); else f.name.focus(); },
+    wizDel() { wiz.members.splice(Number(el.dataset.i), 1); wizRender(); },
   };
   acts[a]?.();
 });
@@ -683,6 +776,8 @@ document.addEventListener('submit', e => {
   const form = e.target, fd = new FormData(form), kind = form.dataset.form;
   if (kind === 'unlock') {
     if (fd.get('pin') === state.pin) { ui.unlocked = true; render(); } else toast('PIN stimmt nicht');
+  } else if (kind === 'wiz') {
+    wizSubmit(form, fd);
   } else if (kind === 'settings') {
     state.familyName = fd.get('familyName').trim(); state.pin = fd.get('pin').trim(); save(); render(); toast('Gespeichert');
   } else if (kind === 'modal' && onSubmit) {

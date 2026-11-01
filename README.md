@@ -6,4 +6,6 @@ Alle Daten bleiben lokal auf dem Gerät. In diesem Repository liegt nur die App 
 
 **Installieren:** Die App in Safari auf dem iPad öffnen und mit „Zum Home-Bildschirm“ ablegen.
 
-**Verwaltung:** Die Standard-PIN ist 1234. Sie lässt sich in den Einstellungen ändern. Dort gibt es auch die Datensicherung als JSON-Datei.
+**Einrichten:** Die App startet mit Beispieldaten. Der Button „Eigene Familie einrichten“ führt durch Familienname, Mitglieder und PIN für die Verwaltung. In den Beispieldaten ist die PIN 1234.
+
+**Datensicherung:** In den Einstellungen lässt sich der komplette Stand als JSON-Datei speichern und wieder einspielen. Diese Datei enthält eure Daten und die PIN im Klartext und gehört nicht in ein öffentliches Repository.
