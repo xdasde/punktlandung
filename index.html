@@ -353,10 +353,10 @@
 <div id="modal"></div>
 <div id="toast" aria-live="polite"></div>
 
-<script src="icons.js?v=6cd9f711"></script>
+<script src="icons.js?v=65a5b28d"></script>
 <script>
 'use strict';
-const APP_VERSION = '6cd9f711'; // setzt tools/embed-assets.py
+const APP_VERSION = '65a5b28d'; // setzt tools/embed-assets.py
 
 /* ==========================================================================
    Speicher-Schnittstelle
@@ -1139,7 +1139,7 @@ function adminSettings() {
     <p class="muted small sub-h">Ausschalten blendet eine Funktion nur aus, alle Daten und Punkte bleiben erhalten.</p>
     ${flag_('pflicht', featureOn('Pflicht'), 'Pflichtaufgaben', 'Feste Aufgaben für bestimmte Personen')}
     ${flag_('bonus', featureOn('Bonus'), 'Bonusaufgaben', 'Freiwillige Aufgaben für alle')}
-    ${featureOn('Bonus') ? flag_('share', state.share.active, 'Addon Zusammen erledigen', 'Bonusaufgaben teilen, jeder bekommt einen Anteil der Punkte') : ''}
+    ${featureOn('Bonus') ? flag_('share', state.share.active, 'Addon Team-Bonus', 'Bonusaufgaben zusammen erledigen, jeder bekommt einen Anteil der Punkte') : ''}
     ${flag_('grades', state.grades.active, 'Addon Schulnoten', 'Gute Noten mit Punkten belohnen')}
     ${flag_('goal', state.goal.active, 'Addon Familienziel', 'Gemeinsames Wochenziel auf dem Belohnungsblatt')}
     ${featureOn('Pflicht') ? flag_('streak', state.streak.active, 'Addon Serien-Bonus', 'Extrapunkte für mehrere Tage in Folge') : ''}
@@ -1150,7 +1150,7 @@ function adminSettings() {
         <label class="field"><span>Familienziel</span><input name="goalName" value="${esc(state.goal.name)}" required></label>
         <div class="field"><span>Punkte pro Woche</span>${stepper('goalTarget', state.goal.target, 1)}</div>
       </div>` : ''}
-      ${state.share.active && featureOn('Bonus') ? `<div class="two"><div class="field"><span>Zusammen: Anteil je Person in %</span>${stepper('sharePercent', state.share.percent, 10, 100)}</div></div>` : ''}
+      ${state.share.active && featureOn('Bonus') ? `<div class="two"><div class="field"><span>Team-Bonus: Punkte je Person in %</span>${stepper('sharePercent', state.share.percent, 10, 200)}</div></div>` : ''}
       ${state.streak.active && featureOn('Pflicht') ? `<div class="two">
         <div class="field"><span>Serie alle wie viele Tage?</span>${stepper('streakEvery', state.streak.every, 2)}</div>
         <div class="field"><span>Bonuspunkte</span>${stepper('streakPoints', state.streak.points, 0)}</div>
@@ -1705,7 +1705,7 @@ document.addEventListener('submit', e => {
     save(); render(); toast('Gespeichert');
   } else if (kind === 'extras') {
     if (fd.has('goalName')) state.goal = { ...state.goal, name:fd.get('goalName').trim(), target:Math.max(1, number(fd.get('goalTarget'))) };
-    if (fd.has('sharePercent')) state.share = { ...state.share, percent:Math.min(100, Math.max(10, number(fd.get('sharePercent')))) };
+    if (fd.has('sharePercent')) state.share = { ...state.share, percent:Math.min(200, Math.max(10, number(fd.get('sharePercent')))) };
     if (fd.has('streakEvery')) {
       const st = state.streak, every = Math.max(2, number(fd.get('streakEvery'))), points = number(fd.get('streakPoints'));
       if (every !== st.every || points !== st.points) state.streak = { ...st, every, points, since:today() };
