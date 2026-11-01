@@ -425,10 +425,10 @@
 <div id="modal"></div>
 <div id="toast" aria-live="polite"></div>
 
-<script src="icons.js?v=cf0363d9"></script>
+<script src="icons.js?v=8e549093"></script>
 <script>
 'use strict';
-const APP_VERSION = 'cf0363d9'; // setzt tools/embed-assets.py
+const APP_VERSION = '8e549093'; // setzt tools/embed-assets.py
 
 /* ==========================================================================
    Speicher-Schnittstelle
@@ -1065,6 +1065,15 @@ function dayData(day) {
   const counts = i => !i.h && !i.task.unlimited;
   return { all, open:all.filter(counts), openOf:id => all.filter(i => counts(i) && i.memberId === id).length };
 }
+/* Mehrfach-Aufgaben: eine Zeile je Aufgabe und Person, bis alle Durchgänge erledigt sind */
+function collapse(list) {
+  const groups = new Map();
+  for (const i of list) { const k = `${i.task.id}|${i.memberId}`; groups.has(k) ? groups.get(k).push(i) : groups.set(k, [i]); }
+  return [...groups.values()].map(items => {
+    const open = items.filter(i => !i.h);
+    return { ...(open[0] ?? items[items.length - 1]), doneCount:items.length - open.length };
+  });
+}
 function personTiles(d) {
   const f = ui.filter, pf = featureOn('Pflicht');
   return `<div class="tiles">${activeMembers().map(m =>
@@ -1076,7 +1085,7 @@ function personTiles(d) {
 function taskRow(i, day, showTime = true) {
   const key = `data-task="${esc(i.task.id)}" data-slot="${i.slot}" data-member="${esc(i.memberId ?? '')}"`;
   const time = i.task.time && showTime ? `<span class="tl-time">${esc(i.task.time)}</span>` : '';
-  const slot = i.task.times > 1 && !i.task.unlimited ? `<span>${i.slot}/${i.task.times}</span>` : '';
+  const slot = i.task.times > 1 && !i.task.unlimited ? `<span>${i.doneCount ?? i.slot}/${i.task.times}</span>` : '';
   if (i.task.type === 'Pflicht') {
     const m = member(i.memberId);
     return `<button class="row ${i.h?'done':''}" style="--c:${esc(m?.color)}" data-act="toggle" aria-pressed="${!!i.h}" ${key}>
@@ -1099,10 +1108,10 @@ function viewTasks() {
   const day = shownDay();
   if (!activeMembers().length) return `<h1>${esc(state.familyName)}</h1><div class="empty" style="margin-top:16px">Noch keine Familienmitglieder. Lege sie unter Verwaltung → Familie an.</div>`;
   const d = dayData(day), f = ui.filter, pf = featureOn('Pflicht'), bo = featureOn('Bonus');
-  const must = d.all.filter(i => i.task.type === 'Pflicht' && (f === 'alle' || i.memberId === f))
+  const must = collapse(d.all.filter(i => i.task.type === 'Pflicht' && (f === 'alle' || i.memberId === f)))
     .sort((a,b) => (!!a.h - !!b.h) || state.members.findIndex(m=>m.id===a.memberId) - state.members.findIndex(m=>m.id===b.memberId));
-  const bonus = d.all.filter(i => i.task.type === 'Bonus').sort((a,b) => !!a.h - !!b.h);
-  const open = must.filter(i => !i.h).length + bonus.filter(i => !i.h && !i.task.unlimited).length;
+  const bonus = collapse(d.all.filter(i => i.task.type === 'Bonus')).sort((a,b) => !!a.h - !!b.h);
+  const open = d.all.filter(i => !i.h && !i.task.unlimited && (i.task.type === 'Bonus' || f === 'alle' || i.memberId === f)).length;
   return `
     ${installBanner()}
     ${state.demo ? `<button class="banner" data-act="wizStart">${ic('users')}
@@ -1131,7 +1140,11 @@ function viewTimeline() {
   const mine = i => f === 'alle' || i.memberId === f || (i.task.type === 'Bonus' && (!i.h || groupOf(i.h).some(x => x.memberId === f)));
   const now = new Date(), nowText = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
   const events = [], rest = [];
-  for (const i of d.all.filter(mine)) {
+  const slotKey = i => `${i.task.id}|${i.memberId}|${i.slot}`;
+  const nextOpen = new Map(collapse(d.all).filter(i => !i.h).map(i => [slotKey(i), i]));
+  for (const raw of d.all.filter(mine)) {
+    const i = raw.h || raw.task.unlimited ? raw : nextOpen.get(slotKey(raw));
+    if (!i) continue;
     if (i.task.unlimited) {
       const done = state.taskHistory.filter(h => h.date === day && h.taskId === i.task.id && (f === 'alle' || h.memberId === f));
       const seen = new Set();
@@ -1338,6 +1351,7 @@ function adminRewardHist() {
 }
 /* Neue Einträge oben ergänzen, in Alltagssprache und bei jedem Release */
 const CHANGELOG = [
+  ['1.13', 'Aufgeräumte Listen', ['Aufgaben für mehrmals täglich stehen nur noch einmal in der Liste','Der Zähler zeigt den Fortschritt, zum Beispiel 1/3','Erledigt ist die Aufgabe erst nach dem letzten Mal']],
   ['1.12', 'Belohnungen im Zeitstrahl', ['Eingelöste Belohnungen erscheinen mit Uhrzeit im Zeitstrahl','Auch gemeinsam eingelöste Belohnungen stehen dort als ein Eintrag']],
   ['1.11', 'Echter Zeitstrahl', ['Zeitstrahl zeigt, wann eine Aufgabe wirklich erledigt wurde','Durchgehende Linie mit echten Zeitabständen und Stunden','Überfällige Aufgaben sind markiert']],
   ['1.10', 'Zusammenlegen', ['Belohnungen gemeinsam einlösen und Punkte zusammenlegen','Die App teilt die Kosten gerecht auf','Als Addon abschaltbar']],
