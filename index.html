@@ -275,6 +275,7 @@
   .selbar b { font-weight: 650; margin-right: auto; white-space: nowrap; }
   .selbar .btn { min-height: 44px; padding: 7px 13px; }
   .selpad { height: 72px; }
+  .grade-points { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
   .back { display: inline-flex; align-items: center; gap: 4px; min-height: 44px; color: var(--primary); font-weight: 620; margin: -6px 0 2px -4px; }
   .back svg { transform: rotate(180deg); }
   .menu-ic { width: 44px; height: 44px; border-radius: 12px; background: var(--primary-soft); color: var(--primary); display: flex; align-items: center; justify-content: center; font-size: 19px; flex: none; }
@@ -330,10 +331,10 @@
 <div id="modal"></div>
 <div id="toast" aria-live="polite"></div>
 
-<script src="icons.js?v=f6f01c2b"></script>
+<script src="icons.js?v=2fa13426"></script>
 <script>
 'use strict';
-const APP_VERSION = 'f6f01c2b'; // setzt tools/embed-assets.py
+const APP_VERSION = '2fa13426'; // setzt tools/embed-assets.py
 
 /* ==========================================================================
    Speicher-Schnittstelle
@@ -590,6 +591,7 @@ const SVG = {
   clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>', users:'<circle cx="9" cy="8" r="3.5"/><path d="M3 20c0-3.5 2.5-6 6-6s6 2.5 6 6M16 5a3.5 3.5 0 010 6.5M17 14c2.5.5 4 2.700 4 6"/>',
   chev:'<path d="M9 5l7 7-7 7"/>', cam:'<path d="M4 8h3l2-3h6l2 3h3a1 1 0 011 1v10a1 1 0 01-1 1H4a1 1 0 01-1-1V9a1 1 0 011-1z"/><circle cx="12" cy="13.500" r="3.500"/>',
   image:'<rect x="4" y="5" width="16" height="14" rx="2"/><circle cx="9" cy="10" r="1.500"/><path d="M4 17l5-4 3 2.500 3-3 5 4.500"/>',
+  grad:'<path d="M2 9l10-5 10 5-10 5z"/><path d="M6 11.500V16c3 2.500 9 2.500 12 0v-4.500M22 9v6"/>',
   flame:'<path d="M12 3c1 3.500 5.500 5.500 5.500 10.500a5.500 5.500 0 01-11 0c0-2 1-3.500 2-4.500.3 1.500 1 2.500 2 3 0-3.500 0-6 1.500-9z"/>',
   alert:'<circle cx="12" cy="12" r="9"/><path d="M12 7.500V13M12 16.500v.01"/>',
 };
@@ -626,6 +628,7 @@ function emptyState() {
   return { familyName: 'Unsere Familie', pin: '1234', demo: false, lastClosed: addDays(today(), -1),
            goal: { active:false, name:'Filmabend', target:150 },
            streak: { active:true, every:5, points:10, since:today() },
+           grades: { active:true, points:{ 1:500, 2:200, 3:0, 4:0, 5:0, 6:0 } },
            members: [], tasks: [], rewards: [], taskHistory: [], rewardHistory: [] };
 }
 const sampleRewards = () => [
@@ -740,7 +743,9 @@ function balance(memberId) {
   return sum;
 }
 const STREAK_TASK = 'streak';
-const isTaskEntry = h => h.taskId !== STREAK_TASK;
+const GRADE_TASK = 'grade';
+const isGrade = h => h.taskId === GRADE_TASK;
+const isTaskEntry = h => h.taskId !== STREAK_TASK && !isGrade(h);
 /* Familienziel: Punkte aller seit Montag. Es zählt nur mit, Punkte werden nicht abgezogen. */
 function weekPoints() {
   const t = today(), monday = addDays(t, -((parseKey(t).getDay() + 6) % 7));
@@ -779,7 +784,7 @@ function syncStreakBonus() {
   for (const [memberId, v] of Object.entries(s))
     for (const k of v.milestones) if (k.date >= since) want.set(`streak-${memberId}-${k.date}`, { ...k, memberId });
   const before = state.taskHistory.length;
-  state.taskHistory = state.taskHistory.filter(h => isTaskEntry(h) || h.date < since || want.has(h.id));
+  state.taskHistory = state.taskHistory.filter(h => h.taskId !== STREAK_TASK || h.date < since || want.has(h.id));
   const have = new Set(state.taskHistory.map(h => h.id)), added = [];
   for (const [id, k] of want) if (!have.has(id)) {
     const h = { id, date:k.date, taskId:STREAK_TASK, slot:0, memberId:k.memberId, name:`Serien-Bonus (${k.run} Tage)`, status:'Erledigt', points:Number(cfg.points) };
@@ -827,9 +832,9 @@ const rowAttrs = (act, id, extra = '') => `class="click ${extra} ${selOn(id)?'pi
 const newest = l => [...l].sort((a,b) => b.date.localeCompare(a.date)).slice(0,100);
 function selectable() {
   return { tasks:state.tasks, rewards:state.rewards, family:activeMembers(),
-    taskHist:newest(state.taskHistory).filter(isTaskEntry), rewardHist:newest(state.rewardHistory) }[ui.admin]?.map(x => x.id) ?? [];
+    grades:state.taskHistory.filter(isGrade), taskHist:newest(state.taskHistory).filter(isTaskEntry), rewardHist:newest(state.rewardHistory) }[ui.admin]?.map(x => x.id) ?? [];
 }
-const SEL_WORDS = { tasks:['Aufgabe','Aufgaben'], rewards:['Belohnung','Belohnungen'], family:['Person','Personen'], taskHist:['Eintrag','Einträge'], rewardHist:['Eintrag','Einträge'] };
+const SEL_WORDS = { grades:['Note','Noten'], tasks:['Aufgabe','Aufgaben'], rewards:['Belohnung','Belohnungen'], family:['Person','Personen'], taskHist:['Eintrag','Einträge'], rewardHist:['Eintrag','Einträge'] };
 function selBar() {
   if (!ui.sel) return '';
   const n = ui.sel.size, all = selectable(), full = all.length && all.every(id => ui.sel.has(id));
@@ -1008,10 +1013,11 @@ function viewAdmin() {
     </div>`;
   const tabs = [['tasks','Aufgaben','tasks',`${state.tasks.length} angelegt`],['rewards','Belohnungen','gift',`${state.rewards.length} angelegt`],
     ['taskHist','Aufgabenhistorie','clock',`${state.taskHistory.length} Einträge`],['rewardHist','Belohnungshistorie','clock',`${state.rewardHistory.length} Einträge`],
+    ...(state.grades.active ? [['grades','Schulnoten','grad',`${state.taskHistory.filter(isGrade).length} Noten`]] : []),
     ['family','Familie','users',`${activeMembers().length} Personen`],['settings','Einstellungen','gear','PIN, Ziel, Export']];
   if (phone() && ui.adminMenu) return `<div class="top"><h1>Verwaltung</h1><button class="btn ghost" data-act="lock">${ic('lock')}Sperren</button></div>
     <div class="list">${tabs.map(([k,l,i,sub]) => `<button class="row" data-act="adminTab" data-v="${k}"><span class="menu-ic">${ic(i)}</span><span class="what"><b>${l}</b><span class="sub">${sub}</span></span><span class="go">${ic('chev')}</span></button>`).join('')}</div>`;
-  const body = { tasks:adminTasks, rewards:adminRewards, taskHist:adminTaskHist, rewardHist:adminRewardHist, family:adminFamily, settings:adminSettings }[ui.admin]();
+  const body = { grades:adminGrades, tasks:adminTasks, rewards:adminRewards, taskHist:adminTaskHist, rewardHist:adminRewardHist, family:adminFamily, settings:adminSettings }[ui.admin]();
   const canSel = ui.admin !== 'settings' && selectable().length;
   const selBtn = canSel && !ui.sel ? `<button class="btn ghost" data-act="selStart">Auswählen</button>` : '';
   if (phone()) return `<div class="sel-start"><button class="back" data-act="adminBack" style="margin:0">${ic('chev')}Verwaltung</button>${selBtn}</div>${body}${selBar()}`;
@@ -1067,6 +1073,22 @@ function adminRewardHist() {
   ${rows.map(h => `<tr ${rowAttrs('rewardHistForm', h.id)}>${selTd(h.id)}<td>${fmtShort(h.date)}</td><td>${who(h.memberId)}</td><td>${esc(plainName(h.name))}</td><td class="num">-${h.cost}</td></tr>`).join('')}
   </tbody></table></div><p class="muted small">Zeile antippen zum Ändern oder Löschen.</p></div>`;
 }
+const SUBJECTS = ['Mathe','Deutsch','Englisch','Sachunterricht','Kunst','Musik','Sport','Religion','Biologie','Geschichte','Französisch','Physik','Chemie','Erdkunde'];
+function adminGrades() {
+  const rows = state.taskHistory.filter(isGrade).sort((a,b) => b.date.localeCompare(a.date));
+  const empty = 'Noch keine Noten eingetragen.';
+  const points = `<div class="panel" style="margin-top:18px"><h2>Punkte je Note</h2><p class="muted small sub-h">Wird beim Eintragen vorgeschlagen und lässt sich pro Note ändern.</p>
+    <form data-form="gradePoints"><div class="grade-points">
+      ${[1,2,3,4,5,6].map(n => `<div class="field"><span>Note ${n}</span>${stepper('p'+n, state.grades.points[n] ?? 0, 0)}</div>`).join('')}
+    </div><button class="btn">Speichern</button></form></div>`;
+  if (phone()) return `<div class="bar-head"><h1>Schulnoten</h1><button class="btn" data-act="gradeForm">${ic('plus')}Neu</button></div>
+    ${cards(rows.map(h => ({ act:'gradeForm', id:h.id, lead:avatar(member(h.memberId),'sm'), title:`${esc(h.subject)}: Note ${esc(h.grade)}`,
+      sub:`${fmtShort(h.date)} · ${esc(mName(h.memberId))}`, right:`<span class="chip ok">+${h.points}</span>` })), empty)}${points}`;
+  return `<div class="panel"><div class="bar-head"><h2>Schulnoten</h2><button class="btn" data-act="gradeForm">${ic('plus')}Note eintragen</button></div>
+    ${rows.length ? `<div class="scroll"><table><thead><tr>${selTh()}<th>Datum</th><th>Person</th><th>Fach</th><th class="num">Note</th><th class="num">Punkte</th></tr></thead><tbody>
+    ${rows.map(h => `<tr ${rowAttrs('gradeForm', h.id)}>${selTd(h.id)}<td>${fmtShort(h.date)}</td><td>${who(h.memberId)}</td><td>${esc(h.subject)}</td><td class="num">${esc(h.grade)}</td><td class="num">+${h.points}</td></tr>`).join('')}
+    </tbody></table></div>` : `<div class="empty">${empty}</div>`}</div>${points}`;
+}
 function adminFamily() {
   if (phone()) return `<div class="bar-head"><h1>Familie</h1><button class="btn" data-act="memberForm">${ic('plus')}Neu</button></div>
     ${cards(activeMembers().map(m => ({ act:'memberForm', id:m.id, lead:avatar(m,'sm'), title:esc(m.name), sub:`${balance(m.id)} Punkte` })), 'Noch keine Mitglieder.')}`;
@@ -1082,7 +1104,7 @@ function adminSettings() {
       <label class="field"><span>Admin-PIN</span><input name="pin" type="password" value="${esc(state.pin)}" inputmode="numeric" pattern="\\d{4,8}" title="4 bis 8 Ziffern" autocomplete="off" required></label>
       <button class="btn">Speichern</button>
     </form></div>
-  <div class="panel narrow"><h2>Familienziel und Serien</h2>
+  <div class="panel narrow"><h2>Familienziel, Schulnoten und Serien</h2>
     <form data-form="extras">
       ${toggleField('goalActive', state.goal.active, 'Wöchentliches Familienziel')}
       <p class="muted small" style="margin-top:0">Alle sammeln von Montag bis Sonntag gemeinsam. Das Ziel zieht keine Punkte ab, die Belohnung selbst gebt ihr als Familie.</p>
@@ -1090,6 +1112,8 @@ function adminSettings() {
         <label class="field"><span>Ziel</span><input name="goalName" value="${esc(state.goal.name)}" required></label>
         <div class="field"><span>Punkte pro Woche</span>${stepper('goalTarget', state.goal.target, 1)}</div>
       </div>
+      ${toggleField('gradesActive', state.grades.active, 'Addon Schulnoten')}
+      <p class="muted small" style="margin-top:0">Zeigt in der Verwaltung den Bereich Schulnoten. Ausschalten blendet ihn nur aus, Noten und Punkte bleiben erhalten.</p>
       ${toggleField('streakActive', state.streak.active, 'Serien-Bonus')}
       <p class="muted small" style="margin-top:0">Wer an mehreren Tagen in Folge alle Pflichtaufgaben schafft, bekommt Extrapunkte. Änderungen gelten ab heute.</p>
       <div class="two">
@@ -1284,6 +1308,30 @@ function rewardHistForm(id) {
     });
   modal.del = () => { state.rewardHistory = state.rewardHistory.filter(x => x.id !== id); };
 }
+function gradeForm(id) {
+  const h = state.taskHistory.find(x => x.id === id) || { date:today(), memberId:activeMembers()[0]?.id, subject:'', grade:1, points:state.grades.points[1] ?? 0 };
+  modal(`<h2>${id?'Note ändern':'Note eintragen'}</h2>${closeX}<form data-form="modal">
+    <label class="field"><span>Person</span><select name="memberId">${memberOptions(h.memberId)}</select></label>
+    <label class="field"><span>Fach</span><input name="subject" list="subjects" value="${esc(h.subject)}" autocomplete="off" required></label>
+    <datalist id="subjects">${SUBJECTS.map(f => `<option value="${f}">`).join('')}</datalist>
+    <div class="field"><span>Note</span><div class="pickers text solid">
+      ${[1,2,3,4,5,6].map(n => `<label><input type="radio" name="grade" value="${n}" ${Number(h.grade)===n?'checked':''}><i>${n}</i></label>`).join('')}</div></div>
+    <div class="two">
+      <div class="field"><span>Punkte</span>${stepper('points', h.points, 0)}</div>
+      <label class="field"><span>Datum</span><input name="date" type="date" value="${esc(h.date)}" required></label>
+    </div>
+    ${formButtons(!!id)}</form>`, fd => {
+      const grade = number(fd.get('grade')), subject = fd.get('subject').trim(), points = number(fd.get('points'));
+      if (!fd.get('memberId')) { toast('Bitte zuerst ein Familienmitglied anlegen', '', true); return false; }
+      const data = { date:fd.get('date'), memberId:fd.get('memberId'), subject, grade, points, name:`Note ${grade} in ${subject}` };
+      if (id) Object.assign(h, data);
+      else { state.taskHistory.push({ id:uid(), taskId:GRADE_TASK, slot:0, status:'Erledigt', ...data });
+        if (points) toast(`Super, ${mName(data.memberId)}!`, `+${points} Punkte`); }
+    });
+  modal.del = id ? () => { state.taskHistory = state.taskHistory.filter(x => x.id !== id); } : null;
+  const f = $('#modal form');
+  f.querySelectorAll('[name=grade]').forEach(r => r.addEventListener('change', () => { f.points.value = state.grades.points[r.value] ?? 0; }));
+}
 function whoDidIt(inst) {
   modal(`<h2>Wer hat „${esc(inst.task.name)}“ erledigt?</h2>${closeX}
     ${activeMembers().map(m => `<button class="pick" data-act="bonusBy" data-id="${m.id}">${avatar(m,'sm')}<span class="t"><b>${esc(m.name)}</b></span>${pointChip(inst.task.points)}</button>`).join('')}`);
@@ -1437,7 +1485,7 @@ function toggle(btn) {
 function selDelete() {
   const n = ui.sel.size, [one, many] = SEL_WORDS[ui.admin];
   const note = { tasks:'Bereits erledigte Einträge bleiben in der Historie.', rewards:'Bereits eingelöste Belohnungen bleiben in der Historie.',
-    family:'Sie verschwinden aus dem Alltag. Historie und Punkte bleiben erhalten.', taskHist:'Die Punkte werden automatisch neu berechnet.', rewardHist:'Die Punkte werden automatisch neu berechnet.' }[ui.admin];
+    family:'Sie verschwinden aus dem Alltag. Historie und Punkte bleiben erhalten.', grades:'Die Punkte dieser Noten werden wieder abgezogen.', taskHist:'Die Punkte werden automatisch neu berechnet.', rewardHist:'Die Punkte werden automatisch neu berechnet.' }[ui.admin];
   modal(`<h2>${n} ${n === 1 ? one : many} löschen?</h2>${closeX}<p class="muted">${note}</p>
     <div class="actions"><button class="btn ghost" data-act="close">Abbrechen</button><button class="btn coral" data-act="selYes">Ja, löschen</button></div>`);
 }
@@ -1445,7 +1493,7 @@ function selApply() {
   const ids = ui.sel, n = ids.size, keep = x => !ids.has(x.id);
   if (ui.admin === 'tasks') state.tasks = state.tasks.filter(keep);
   if (ui.admin === 'rewards') state.rewards = state.rewards.filter(keep);
-  if (ui.admin === 'taskHist') state.taskHistory = state.taskHistory.filter(keep);
+  if (ui.admin === 'taskHist' || ui.admin === 'grades') state.taskHistory = state.taskHistory.filter(keep);
   if (ui.admin === 'rewardHist') state.rewardHistory = state.rewardHistory.filter(keep);
   if (ui.admin === 'family') { state.members.forEach(m => { if (ids.has(m.id)) m.active = false; }); if (ids.has(ui.filter)) ui.filter = 'alle'; }
   ui.sel = null; closeModal(); save(); render(); toast(`${n} gelöscht`);
@@ -1492,6 +1540,7 @@ document.addEventListener('click', e => {
     lock() { ui.sel = null; ui.unlocked = false; render(); },
     adminTab() { ui.sel = null; ui.admin = el.dataset.v; ui.adminMenu = false; render(); scrollTo(0, 0); },
     taskForm() { if (id) taskForm(id); else presetPicker('task'); },
+    gradeForm() { gradeForm(id); },
     rewardForm() { if (id) rewardForm(id); else presetPicker('reward'); },
     presetBlank() { if (el.dataset.kind === 'task') taskForm(); else rewardForm(); },
     presetUse() { const i = Number(el.dataset.i); if (el.dataset.kind === 'task') taskForm(undefined, PRESETS[i]); else rewardForm(undefined, REWARD_PRESETS[i]); }, memberForm() { memberForm(id); },
@@ -1522,7 +1571,11 @@ document.addEventListener('submit', e => {
     if (fd.get('pin') === state.pin) { ui.unlocked = true; render(); } else toast('PIN stimmt nicht', '', true);
   } else if (kind === 'wiz') {
     wizSubmit(form, fd);
+  } else if (kind === 'gradePoints') {
+    state.grades = { ...state.grades, points:Object.fromEntries([1,2,3,4,5,6].map(n => [n, number(fd.get('p'+n))])) };
+    save(); render(); toast('Gespeichert');
   } else if (kind === 'extras') {
+    state.grades = { ...state.grades, active:fd.has('gradesActive') };
     state.goal = { active:fd.has('goalActive'), name:fd.get('goalName').trim(), target:Math.max(1, number(fd.get('goalTarget'))) };
     const st = state.streak, every = Math.max(2, number(fd.get('streakEvery'))), points = number(fd.get('streakPoints')), active = fd.has('streakActive');
     if (active !== st.active || every !== st.every || points !== st.points) state.streak = { active, every, points, since:today() };
