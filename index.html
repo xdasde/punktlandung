@@ -261,8 +261,8 @@
   .tl-dot { position: relative; z-index: 1; width: 22px; height: 22px; border-radius: 50%; background: #fff; border: 3px solid #C3C8CF; display: flex; align-items: center; justify-content: center; color: #fff; justify-self: center; }
   .tl-dot svg { font-size: 11px; stroke-width: 3.5; }
   .tl-item.done .tl-dot { background: var(--primary); border-color: var(--primary); }
-  .tl-item.reward .tl-dot { background: var(--honey); border-color: var(--honey); color: var(--ink); }
-  .tl-item.reward .tl-dot svg { stroke-width: 2.4; font-size: 12px; }
+  .tl-item.redeem .tl-dot { background: var(--honey); border-color: var(--honey); color: var(--ink); }
+  .tl-item.redeem .tl-dot svg { stroke-width: 2.4; font-size: 12px; }
   .tl-item.late .tl-dot { border-color: var(--coral); background: #FDE3E0; }
   .tl-item.late .tl-when span { color: #A83A2C; font-weight: 600; }
   .tl-now { position: relative; display: grid; grid-template-columns: var(--tw) 22px 1fr; gap: 0 8px; align-items: center; color: #A83A2C; font-weight: 650; font-size: 14px; min-height: 26px; }
@@ -425,10 +425,10 @@
 <div id="modal"></div>
 <div id="toast" aria-live="polite"></div>
 
-<script src="icons.js?v=ea2061bc"></script>
+<script src="icons.js?v=cf0363d9"></script>
 <script>
 'use strict';
-const APP_VERSION = 'ea2061bc'; // setzt tools/embed-assets.py
+const APP_VERSION = 'cf0363d9'; // setzt tools/embed-assets.py
 
 /* ==========================================================================
    Speicher-Schnittstelle
@@ -1160,7 +1160,7 @@ function viewTimeline() {
     if (shown.has(h.group ?? h.id) || !at || (f !== 'alle' && !all.some(x => x.memberId === f))) continue;
     shown.add(h.group ?? h.id);
     const total = all.reduce((a,x) => a + Number(x.cost), 0);
-    events.push({ t:clock(at), state:'reward', html:`<div class="row">${rewardThumb({ name:h.name })}<span class="what"><b>${esc(plainName(h.name))}</b><span class="sub">${all.map(x => who(x.memberId)).join('')}</span></span><span class="chip bad">-${total} P</span></div>` });
+    events.push({ t:clock(at), state:'redeem', html:`<div class="row">${rewardThumb({ name:h.name })}<span class="what"><b>${esc(plainName(h.name))}</b><span class="sub">${all.map(x => who(x.memberId)).join('')}</span></span><span class="chip bad">-${total} P</span></div>` });
   }
   events.sort((a,b) => a.t.localeCompare(b.t) || (a.slot ?? 0) - (b.slot ?? 0));
   const items = isToday ? [...events, { t:nowText, state:'now' }].sort((a,b) => a.t.localeCompare(b.t) || (a.state === 'now' ? 1 : -1)) : events;
@@ -1172,7 +1172,7 @@ function viewTimeline() {
     if (e.state === 'now') line += `<div class="tl-now" style="margin-top:${Math.round(gap)}px"><span>${e.t}</span><i></i><b>Jetzt</b></div>`;
     else line += `<div class="tl-item ${e.state}" ${hour === lastHour ? `style="margin-top:${Math.round(Math.max(8, gap))}px"` : ''}>
       <div class="tl-when"><b>${e.t}</b>${e.plan ? `<span>Plan ${e.plan}</span>` : e.state === 'late' ? '<span>überfällig</span>' : ''}</div>
-      <span class="tl-dot">${e.state === 'done' ? ic('check') : e.state === 'reward' ? ic('gift') : ''}</span>${e.html}</div>`;
+      <span class="tl-dot">${e.state === 'done' ? ic('check') : e.state === 'redeem' ? ic('gift') : ''}</span>${e.html}</div>`;
     lastMin = m; if (e.state !== 'now') lastHour = hour;
   }
   return `<div class="top"><h1>Zeitstrahl</h1><div class="stats">${dayBar(day)}${syncBtn()}</div></div>
