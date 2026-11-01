@@ -154,6 +154,7 @@
   .emojis i { display: flex; align-items: center; justify-content: center; width: 50px; height: 50px; font-size: 27px; font-style: normal; border-radius: 12px; border: 2px solid var(--line); }
   .emojis input:checked + i { border-color: var(--accent); background: var(--accent-soft); }
   .emojis input:focus-visible + i { outline: 3px solid var(--accent); outline-offset: 2px; }
+  .chips i { width: auto; height: 48px; padding: 0 14px; gap: 6px; font-size: 17px; }
   .demo-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; background: var(--accent-soft); border-radius: 14px; padding: 10px 14px; margin-bottom: 16px; }
   .steps { font-size: 15px; color: var(--muted); margin-bottom: 4px; }
   .hidden { display: none !important; }
@@ -234,7 +235,7 @@ function demoState() {
   s.tasks = [
     task('t1','Zähne putzen','Pflicht','m3',1,'taeglich',{times:2}),
     task('t2','Schulranzen packen','Pflicht','m3',2),
-    task('t3','Bett machen','Pflicht','alle',1),
+    task('t3','Bett machen','Pflicht',['m3','m4'],1),
     task('t4','Zähne putzen','Pflicht','m4',1,'taeglich',{times:2}),
     task('t5','Spülmaschine ausräumen','Pflicht','m1',2),
     task('t6','Wäsche aufhängen','Pflicht','m2',2),
@@ -280,6 +281,9 @@ function isDue(task, day) {
   if (task.rec === 'intervall') return diffDays(day, task.start) % Math.max(1, Number(task.interval)) === 0;
   return true;
 }
+/* person ist 'alle' (auch künftige Mitglieder), 'offen' (Bonus), eine Liste von
+   Mitgliedern oder bei älteren Exporten eine einzelne Mitglieds-ID. */
+const taskPeople = t => Array.isArray(t.person) ? t.person : t.person === 'alle' || t.person === 'offen' ? [] : [t.person];
 /* Tagesaufgaben werden aus den Regeln berechnet, nicht vorab gespeichert. */
 function instances(s, day) {
   const out = [];
@@ -288,7 +292,7 @@ function instances(s, day) {
     if (!isDue(task, day)) continue;
     const people = task.type === 'Bonus' ? [null]
       : task.person === 'alle' ? active.map(m => m.id)
-      : active.some(m => m.id === task.person) ? [task.person] : [];
+      : taskPeople(task).filter(id => active.some(m => m.id === id));
     for (const memberId of people)
       for (let slot = 1; slot <= task.times; slot++) out.push({ task, memberId, slot });
   }
@@ -475,7 +479,7 @@ function viewAdmin() {
     ${body}`;
 }
 const recLabel = t => t.rec === 'taeglich' ? 'Täglich' : t.rec === 'wochentag' ? 'Wochentag' : 'Alle X Tage';
-const personLabel = t => t.type === 'Bonus' ? 'Offen' : t.person === 'alle' ? 'Alle' : esc(mName(t.person));
+const personLabel = t => t.type === 'Bonus' ? 'Offen' : t.person === 'alle' ? 'Alle' : taskPeople(t).map(id => esc(mName(id))).join(', ');
 
 function adminTasks() {
   return `<div class="panel"><div class="bar-head"><h2>Aufgaben</h2><button class="btn" data-act="taskForm">+ Neue Aufgabe</button></div>
@@ -626,14 +630,16 @@ const memberOptions = cur => options([
 const number = v => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
 
 function taskForm(id) {
-  const t = state.tasks.find(x => x.id === id) || { active:true, name:'', type:'Pflicht', person:activeMembers()[0]?.id ?? 'alle', points:1, rec:'taeglich', interval:3, weekday:1, times:1 };
+  const t = state.tasks.find(x => x.id === id) || { active:true, name:'', type:'Pflicht', person:[], points:1, rec:'taeglich', interval:3, weekday:1, times:1 };
   modal(`<h2>${id?'Aufgabe bearbeiten':'Neue Aufgabe'}</h2><form data-form="modal">
     <label class="check"><input type="checkbox" name="active" ${t.active?'checked':''}> Aktiv</label>
     <label class="field"><span>Aufgabe</span><input name="name" value="${esc(t.name)}" required></label>
-    <div class="two">
-      <label class="field"><span>Typ</span><select name="type">${options([['Pflicht','Pflicht'],['Bonus','Bonus']],t.type)}</select></label>
-      <label class="field" id="f-person"><span>Person</span><select name="person">${options([['alle','Alle'],...activeMembers().map(m=>[m.id,m.name])],t.person)}</select></label>
-    </div>
+    <label class="field"><span>Typ</span><select name="type">${options([['Pflicht','Pflicht'],['Bonus','Bonus']],t.type)}</select></label>
+    <div class="field" id="f-person"><span>Für wen?</span>
+      <div class="emojis chips">
+        <label><input type="checkbox" name="everyone" ${t.person==='alle'?'checked':''}><i>👨‍👩‍👧‍👧 Alle</i></label>
+        ${activeMembers().map(m => `<label class="one"><input type="checkbox" name="people" value="${esc(m.id)}" ${taskPeople(t).includes(m.id)?'checked':''}><i>${esc(m.emoji)} ${esc(m.name)}</i></label>`).join('')}
+      </div></div>
     <div class="two">
       <label class="field"><span>Punkte</span><input name="points" type="number" min="0" value="${t.points}" required></label>
       <label class="field"><span>Mal pro Tag</span><input name="times" type="number" min="1" max="10" value="${t.times}" required></label>
@@ -644,8 +650,10 @@ function taskForm(id) {
       <label class="field" id="f-interval"><span>Alle wie viele Tage?</span><input name="interval" type="number" min="1" value="${t.interval}"></label>
     </div>
     ${formButtons(!!id)}</form>`, fd => {
+      const bonus = fd.get('type') === 'Bonus', people = fd.getAll('people');
+      if (!bonus && !fd.has('everyone') && !people.length) { toast('Bitte mindestens eine Person auswählen'); return false; }
       const data = { active:fd.has('active'), name:fd.get('name').trim(), type:fd.get('type'),
-        person: fd.get('type')==='Bonus' ? 'offen' : fd.get('person'), points:number(fd.get('points')),
+        person: bonus ? 'offen' : fd.has('everyone') ? 'alle' : people, points:number(fd.get('points')),
         times:Math.max(1,number(fd.get('times'))), rec:fd.get('rec'), weekday:number(fd.get('weekday')), interval:Math.max(1,number(fd.get('interval'))) };
       if (id) Object.assign(t, data); else state.tasks.push({ id:uid(), start:today(), ...data });
     });
@@ -653,6 +661,7 @@ function taskForm(id) {
   const sync = () => {
     const f = $('#modal form');
     $('#f-person').classList.toggle('hidden', f.type.value === 'Bonus');
+    document.querySelectorAll('#f-person .one').forEach(l => l.classList.toggle('hidden', f.everyone.checked));
     $('#f-weekday').classList.toggle('hidden', f.rec.value !== 'wochentag');
     $('#f-interval').classList.toggle('hidden', f.rec.value !== 'intervall');
   };
@@ -790,7 +799,8 @@ document.addEventListener('submit', e => {
   } else if (kind === 'settings') {
     state.familyName = fd.get('familyName').trim(); state.pin = fd.get('pin').trim(); save(); render(); toast('Gespeichert');
   } else if (kind === 'modal' && onSubmit) {
-    onSubmit(fd); save(); closeModal(); render();
+    if (onSubmit(fd) === false) return;
+    save(); closeModal(); render();
   }
 });
 
