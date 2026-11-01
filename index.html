@@ -519,11 +519,11 @@ function adminSettings() {
       <label class="field"><span>Admin-PIN</span><input name="pin" type="password" value="${esc(state.pin)}" inputmode="numeric" pattern="\\d{4,8}" title="4 bis 8 Ziffern" autocomplete="off" required></label>
       <button class="btn">Speichern</button>
     </form></div>
-  <div class="panel" style="max-width:560px"><h2>Datensicherung</h2>
-    <p class="muted">Die Daten liegen nur auf diesem Gerät. Eine Sicherung als Datei schützt vor Datenverlust.</p>
+  <div class="panel" style="max-width:560px"><h2>Daten exportieren und importieren</h2>
+    <p class="muted">Die Daten liegen nur auf diesem Gerät. Mit dem Export sicherst du sie als Datei oder gibst sie an ein anderes Gerät weiter, zum Beispiel per AirDrop. Der Import ersetzt alle Daten auf dem Gerät, auch die PIN. Die Datei enthält alles im Klartext.</p>
     <div class="actions" style="justify-content:flex-start;margin:0">
-      <button class="btn ghost" data-act="exportData">Sicherung speichern</button>
-      <label class="btn ghost" style="display:inline-flex;align-items:center;cursor:pointer">Sicherung einspielen
+      <button class="btn ghost" data-act="exportData">Daten exportieren</button>
+      <label class="btn ghost" style="display:inline-flex;align-items:center;cursor:pointer">Daten importieren
         <input id="importFile" type="file" accept="application/json,.json" class="hidden"></label>
     </div></div>
   <div class="panel" style="max-width:560px"><h2>Daten</h2>
@@ -738,6 +738,21 @@ function toggle(btn) {
   if (ui.filter !== 'alle') { state.taskHistory.push(entry(day, inst, ui.filter, true)); save(); render(); toast(`+${task.points} Punkte für ${mName(ui.filter)}`); return; }
   whoDidIt(inst);
 }
+/* iPad: Teilen-Menü (AirDrop, Dateien, Mail). Sonst normaler Download. */
+async function exportData() {
+  const name = `punktlandung-${today()}.json`;
+  const blob = new Blob([JSON.stringify(state, null, 2)], { type:'application/json' });
+  const file = new File([blob], name, { type:'application/json' });
+  if (navigator.canShare?.({ files:[file] })) {
+    try { await navigator.share({ files:[file] }); return; }
+    catch (err) { if (err.name === 'AbortError') return; }
+  }
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = name;
+  document.body.append(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
+}
 document.addEventListener('click', e => {
   const el = e.target.closest('[data-act]');
   if (!el) return;
@@ -756,13 +771,7 @@ document.addEventListener('click', e => {
     redeem() { redeem(state.rewards.find(r => r.id === id)); },
     bonusBy() { const i = modal.inst; state.taskHistory.push(entry(today(), i, id, true)); save(); closeModal(); render(); toast(`+${i.task.points} Punkte für ${mName(id)}`); },
     redeemBy() { const r = modal.reward; state.rewardHistory.push({ id:uid(), date:today(), memberId:id, name:r.name, cost:r.cost }); save(); closeModal(); render(); toast(`${r.name} für ${mName(id)} eingelöst`); },
-    exportData() {
-      const url = URL.createObjectURL(new Blob([JSON.stringify(state, null, 2)], { type:'application/json' }));
-      const a = document.createElement('a');
-      a.href = url; a.download = `punktlandung-${today()}.json`;
-      document.body.append(a); a.click(); a.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 10000);
-    },
+    exportData() { exportData(); },
     resetDemo() { if (confirm('Alle Daten durch Demodaten ersetzen?')) { state = demoState(); save(); ui.filter='alle'; render(); } },
     wizStart() { wizStart(); },
     wizBack() { wiz.step--; wizRender(); },
@@ -791,10 +800,11 @@ document.addEventListener('change', async e => {
     const data = JSON.parse(await e.target.files[0].text());
     const lists = ['members','tasks','rewards','taskHistory','rewardHistory'];
     if (!data || !lists.every(k => Array.isArray(data[k])) || !/^\d{4}-\d{2}-\d{2}$/.test(data.lastClosed)) throw 0;
-    if (!confirm('Alle aktuellen Daten durch diese Sicherung ersetzen?')) return;
+    const people = data.members.filter(m => m.active).length;
+    if (!confirm(`„${data.familyName}“ importieren?\n${people} Personen, ${data.taskHistory.length} Aufgaben-Einträge, ${data.rewardHistory.length} Belohnungen.\n\nAlle Daten auf diesem Gerät werden ersetzt. Danach gilt die PIN aus der Datei.`)) return;
     state = { ...emptyState(), ...data };
-    closeDays(); save(); ui.filter = 'alle'; render(); toast('Sicherung eingespielt');
-  } catch { toast('Diese Datei ist keine gültige Sicherung'); }
+    closeDays(); save(); ui.filter = 'alle'; render(); toast('Daten importiert');
+  } catch { toast('Diese Datei ist kein gültiger Export'); }
   finally { e.target.value = ''; }
 });
 

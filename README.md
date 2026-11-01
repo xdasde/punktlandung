@@ -8,4 +8,4 @@ Alle Daten bleiben lokal auf dem Gerät. In diesem Repository liegt nur die App 
 
 **Einrichten:** Die App startet mit Beispieldaten. Der Button „Eigene Familie einrichten“ führt durch Familienname, Mitglieder und PIN für die Verwaltung. In den Beispieldaten ist die PIN 1234.
 
-**Datensicherung:** In den Einstellungen lässt sich der komplette Stand als JSON-Datei speichern und wieder einspielen. Diese Datei enthält eure Daten und die PIN im Klartext und gehört nicht in ein öffentliches Repository.
+**Daten teilen:** Unter Verwaltung → Einstellungen lässt sich der komplette Stand als JSON-Datei exportieren und auf einem anderen Gerät importieren. Der Import ersetzt alle Daten dort, auch die PIN. Die Datei enthält eure Daten und die PIN im Klartext und gehört nicht in ein öffentliches Repository.
