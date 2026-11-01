@@ -263,6 +263,18 @@
   .steps .on b { background: var(--primary); color: #fff; }
   .steps .past b { background: var(--primary-soft); color: var(--primary); }
 
+  .sel-start { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 10px; min-height: 44px; }
+  .sel-start .btn { min-height: 42px; padding: 7px 14px; margin-left: auto; }
+  .selbox { width: 28px; height: 28px; border-radius: 8px; border: 2px solid #C3C8CF; flex: none; display: inline-flex; align-items: center; justify-content: center; color: #fff; background: #fff; }
+  .selbox svg { display: none; font-size: 14px; stroke-width: 3; }
+  .selbox.on { background: var(--primary); border-color: var(--primary); }
+  .selbox.on svg { display: block; }
+  tr.picked td { background: var(--primary-soft); }
+  .row.picked { box-shadow: inset 0 0 0 2px var(--primary); }
+  .selbar { position: fixed; left: 0; right: 0; bottom: calc(76px + env(safe-area-inset-bottom)); z-index: 6; background: #fff; box-shadow: 0 -4px 18px rgba(23,32,43,.12); border-bottom: 1px solid var(--line); padding: 10px 14px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .selbar b { font-weight: 650; margin-right: auto; white-space: nowrap; }
+  .selbar .btn { min-height: 44px; padding: 7px 13px; }
+  .selpad { height: 72px; }
   .back { display: inline-flex; align-items: center; gap: 4px; min-height: 44px; color: var(--primary); font-weight: 620; margin: -6px 0 2px -4px; }
   .back svg { transform: rotate(180deg); }
   .menu-ic { width: 44px; height: 44px; border-radius: 12px; background: var(--primary-soft); color: var(--primary); display: flex; align-items: center; justify-content: center; font-size: 19px; flex: none; }
@@ -301,6 +313,9 @@
     .actions .btn { flex: 1; }
     .actions .left { flex: 0 0 100%; margin: 0; order: 3; }
     .feed div { font-size: 15.5px; }
+    .selbar b { flex: 0 0 100%; }
+    .selbar .btn { flex: 1; }
+    .selpad { height: 118px; }
   }
   .toast { position: fixed; left: 50%; transform: translateX(-50%); top: calc(14px + env(safe-area-inset-top)); display: flex; align-items: center; gap: 12px; background: #E3F0DF; color: var(--ink); padding: 12px 16px; border-radius: 13px; z-index: 20; box-shadow: 0 6px 22px rgba(23,32,43,.16); width: max-content; max-width: calc(100% - 28px); font-weight: 550; }
   .toast svg { color: var(--primary); }
@@ -315,10 +330,10 @@
 <div id="modal"></div>
 <div id="toast" aria-live="polite"></div>
 
-<script src="icons.js?v=7238116e"></script>
+<script src="icons.js?v=f6f01c2b"></script>
 <script>
 'use strict';
-const APP_VERSION = '7238116e'; // setzt tools/embed-assets.py
+const APP_VERSION = 'f6f01c2b'; // setzt tools/embed-assets.py
 
 /* ==========================================================================
    Speicher-Schnittstelle
@@ -803,9 +818,31 @@ const ui = { view:'tasks', filter:'alle', admin:'tasks', adminMenu:true, unlocke
 /* Auf dem Handy zeigt die Verwaltung ein Menü und Karten statt Reitern und Tabellen */
 const phoneQuery = matchMedia('(max-width: 700px)');
 const phone = () => phoneQuery.matches;
+/* Mehrfachauswahl in der Verwaltung: ui.sel ist null oder die Menge der gewählten IDs */
+const selOn = id => ui.sel?.has(id);
+const selBox = id => `<span class="selbox ${selOn(id)?'on':''}">${ic('check')}</span>`;
+const selTh = () => ui.sel ? '<th></th>' : '';
+const selTd = (id, can = true) => ui.sel ? `<td style="width:44px">${can ? selBox(id) : ''}</td>` : '';
+const rowAttrs = (act, id, extra = '') => `class="click ${extra} ${selOn(id)?'picked':''}" data-act="${ui.sel ? 'selToggle' : act}" data-id="${esc(id)}"`;
+const newest = l => [...l].sort((a,b) => b.date.localeCompare(a.date)).slice(0,100);
+function selectable() {
+  return { tasks:state.tasks, rewards:state.rewards, family:activeMembers(),
+    taskHist:newest(state.taskHistory).filter(isTaskEntry), rewardHist:newest(state.rewardHistory) }[ui.admin]?.map(x => x.id) ?? [];
+}
+const SEL_WORDS = { tasks:['Aufgabe','Aufgaben'], rewards:['Belohnung','Belohnungen'], family:['Person','Personen'], taskHist:['Eintrag','Einträge'], rewardHist:['Eintrag','Einträge'] };
+function selBar() {
+  if (!ui.sel) return '';
+  const n = ui.sel.size, all = selectable(), full = all.length && all.every(id => ui.sel.has(id));
+  return `<div class="selpad"></div><div class="selbar"><b>${n} ausgewählt</b>
+    <button class="btn ghost" data-act="selAll">${full ? 'Keine' : 'Alle'}</button>
+    <button class="btn ghost" data-act="selEnd">Abbrechen</button>
+    <button class="btn danger" data-act="selDelete" ${n?'':'disabled'}>Löschen</button></div>`;
+}
 const listRow = ({ act, id, lead, title, sub, right = '' }) => {
-  const inner = `${lead}<span class="what"><b>${title}</b>${sub ? `<span class="sub">${sub}</span>` : ''}</span>${right}${act ? `<span class="go">${ic('chev')}</span>` : ''}`;
-  return act ? `<button class="row" data-act="${act}" ${id ? `data-id="${esc(id)}"` : ''}>${inner}</button>` : `<div class="row">${inner}</div>`;
+  const picking = ui.sel && act;
+  if (picking) { lead = selBox(id) + lead; act = 'selToggle'; }
+  const inner = `${lead}<span class="what"><b>${title}</b>${sub ? `<span class="sub">${sub}</span>` : ''}</span>${right}${act && !picking ? `<span class="go">${ic('chev')}</span>` : ''}`;
+  return act ? `<button class="row ${selOn(id)?'picked':''}" data-act="${act}" ${id ? `data-id="${esc(id)}"` : ''}>${inner}</button>` : `<div class="row">${inner}</div>`;
 };
 const cards = (rows, empty) => rows.length ? `<div class="list">${rows.map(listRow).join('')}</div>` : `<div class="empty">${empty}</div>`;
 function save() {
@@ -975,10 +1012,12 @@ function viewAdmin() {
   if (phone() && ui.adminMenu) return `<div class="top"><h1>Verwaltung</h1><button class="btn ghost" data-act="lock">${ic('lock')}Sperren</button></div>
     <div class="list">${tabs.map(([k,l,i,sub]) => `<button class="row" data-act="adminTab" data-v="${k}"><span class="menu-ic">${ic(i)}</span><span class="what"><b>${l}</b><span class="sub">${sub}</span></span><span class="go">${ic('chev')}</span></button>`).join('')}</div>`;
   const body = { tasks:adminTasks, rewards:adminRewards, taskHist:adminTaskHist, rewardHist:adminRewardHist, family:adminFamily, settings:adminSettings }[ui.admin]();
-  if (phone()) return `<button class="back" data-act="adminBack">${ic('chev')}Verwaltung</button>${body}`;
+  const canSel = ui.admin !== 'settings' && selectable().length;
+  const selBtn = canSel && !ui.sel ? `<button class="btn ghost" data-act="selStart">Auswählen</button>` : '';
+  if (phone()) return `<div class="sel-start"><button class="back" data-act="adminBack" style="margin:0">${ic('chev')}Verwaltung</button>${selBtn}</div>${body}${selBar()}`;
   return `<div class="top"><h1>Verwaltung</h1><button class="btn ghost" data-act="lock">${ic('lock')}Sperren</button></div>
     <div class="subnav">${tabs.map(([k,l]) => `<button class="${ui.admin===k?'on':''}" data-act="adminTab" data-v="${k}">${l}</button>`).join('')}</div>
-    ${body}`;
+    ${selBtn ? `<div class="sel-start">${selBtn}</div>` : ''}${body}${selBar()}`;
 }
 const recLabel = t => t.rec === 'taeglich' ? 'Täglich' : t.rec === 'wochentag' ? 'Wochentag' : 'Alle X Tage';
 const personLabel = t => t.type === 'Bonus' ? 'Offen' : t.person === 'alle' ? 'Alle' : taskPeople(t).map(id => esc(mName(id))).join(', ');
@@ -992,9 +1031,9 @@ function adminTasks() {
       right:pointChip(t.points) })), empty)}`;
   if (!state.tasks.length) return `<div class="panel"><div class="bar-head"><h2>Aufgaben</h2><button class="btn" data-act="taskForm">${ic('plus')}Neue Aufgabe</button></div><div class="empty">${empty}</div></div>`;
   return `<div class="panel"><div class="bar-head"><h2>Aufgaben</h2><button class="btn" data-act="taskForm">${ic('plus')}Neue Aufgabe</button></div>
-  <div class="scroll"><table><thead><tr><th>Aktiv</th><th></th><th>Aufgabe</th><th>Typ</th><th>Person</th><th class="num">Punkte</th><th>Wiederholung</th><th class="num">Intervall</th><th>Wochentag</th><th class="num">Mal pro Tag</th></tr></thead><tbody>
-  ${state.tasks.map(t => `<tr class="click ${t.active?'':'inactive'}" data-act="taskForm" data-id="${esc(t.id)}">
-    <td>${activeChip(t.active)}</td><td>${thumb(taskIconId(t))}</td><td>${esc(t.name)}</td><td>${esc(t.type)}</td><td>${personLabel(t)}</td><td class="num">${t.points}</td>
+  <div class="scroll"><table><thead><tr>${selTh()}<th>Aktiv</th><th></th><th>Aufgabe</th><th>Typ</th><th>Person</th><th class="num">Punkte</th><th>Wiederholung</th><th class="num">Intervall</th><th>Wochentag</th><th class="num">Mal pro Tag</th></tr></thead><tbody>
+  ${state.tasks.map(t => `<tr ${rowAttrs('taskForm', t.id, t.active?'':'inactive')}>
+    ${selTd(t.id)}<td>${activeChip(t.active)}</td><td>${thumb(taskIconId(t))}</td><td>${esc(t.name)}</td><td>${esc(t.type)}</td><td>${personLabel(t)}</td><td class="num">${t.points}</td>
     <td>${recLabel(t)}</td><td class="num">${t.rec==='intervall'?t.interval:''}</td><td>${t.rec==='wochentag'?WEEKDAYS[t.weekday]:''}</td><td class="num">${t.times}</td></tr>`).join('')}
   </tbody></table></div><p class="muted small">Zeile antippen zum Bearbeiten.</p></div>`;
 }
@@ -1004,36 +1043,36 @@ function adminRewards() {
     ${cards(state.rewards.map(r => ({ act:'rewardForm', id:r.id, lead:rewardThumb(r), title:esc(plainName(r.name)), sub:r.active?'':'inaktiv', right:`<span class="chip p2">${r.cost} P</span>` })), empty)}`;
   if (!state.rewards.length) return `<div class="panel"><div class="bar-head"><h2>Belohnungen</h2><button class="btn" data-act="rewardForm">${ic('plus')}Neue Belohnung</button></div><div class="empty">${empty}</div></div>`;
   return `<div class="panel"><div class="bar-head"><h2>Belohnungen</h2><button class="btn" data-act="rewardForm">${ic('plus')}Neue Belohnung</button></div>
-  <table><thead><tr><th>Aktiv</th><th></th><th>Belohnung</th><th class="num">Kosten</th></tr></thead><tbody>
-  ${state.rewards.map(r => `<tr class="click ${r.active?'':'inactive'}" data-act="rewardForm" data-id="${esc(r.id)}"><td>${activeChip(r.active)}</td><td>${rewardThumb(r)}</td><td>${esc(plainName(r.name))}</td><td class="num">${r.cost}</td></tr>`).join('')}
+  <table><thead><tr>${selTh()}<th>Aktiv</th><th></th><th>Belohnung</th><th class="num">Kosten</th></tr></thead><tbody>
+  ${state.rewards.map(r => `<tr ${rowAttrs('rewardForm', r.id, r.active?'':'inactive')}>${selTd(r.id)}<td>${activeChip(r.active)}</td><td>${rewardThumb(r)}</td><td>${esc(plainName(r.name))}</td><td class="num">${r.cost}</td></tr>`).join('')}
   </tbody></table><p class="muted small">Zeile antippen zum Bearbeiten.</p></div>`;
 }
 function adminTaskHist() {
-  const rows = [...state.taskHistory].sort((a,b) => b.date.localeCompare(a.date)).slice(0,100);
+  const rows = newest(state.taskHistory);
   if (phone()) return `<h1 style="margin-bottom:6px">Aufgabenhistorie</h1><p class="muted small">Neueste ${rows.length} von ${state.taskHistory.length}</p>
     ${cards(rows.map(h => ({ act:isTaskEntry(h) ? 'taskHistForm' : null, id:h.id, lead:avatar(member(h.memberId),'sm'), title:esc(h.name),
       sub:`${fmtShort(h.date)} · ${esc(mName(h.memberId))}`, right:`<span class="chip ${h.status==='Erledigt'?'ok':'bad'}">${h.status==='Erledigt'?`+${h.points}`:'Offen'}</span>` })), 'Noch keine Einträge.')}`;
   return `<div class="panel"><div class="bar-head"><h2>Aufgabenhistorie</h2><span class="muted small">Neueste ${rows.length} von ${state.taskHistory.length}</span></div>
-  <div class="scroll"><table><thead><tr><th>Datum</th><th>Person</th><th>Aufgabe</th><th>Status</th><th class="num">Punkte</th></tr></thead><tbody>
-  ${rows.map(h => `<tr ${isTaskEntry(h) ? `class="click" data-act="taskHistForm" data-id="${esc(h.id)}"` : ''}><td>${fmtShort(h.date)}</td><td>${who(h.memberId)}</td><td>${esc(h.name)}</td>
+  <div class="scroll"><table><thead><tr>${selTh()}<th>Datum</th><th>Person</th><th>Aufgabe</th><th>Status</th><th class="num">Punkte</th></tr></thead><tbody>
+  ${rows.map(h => `<tr ${isTaskEntry(h) ? rowAttrs('taskHistForm', h.id) : ''}>${selTd(h.id, isTaskEntry(h))}<td>${fmtShort(h.date)}</td><td>${who(h.memberId)}</td><td>${esc(h.name)}</td>
     <td><span class="chip ${h.status==='Erledigt'?'ok':'bad'}">${esc(h.status)}</span></td><td class="num">${h.points}</td></tr>`).join('')}
   </tbody></table></div><p class="muted small">Zeile antippen zum Ändern oder Löschen. Punkte werden automatisch neu berechnet. Serien-Boni ergeben sich von selbst aus den Einträgen.</p></div>`;
 }
 function adminRewardHist() {
-  const rows = [...state.rewardHistory].sort((a,b) => b.date.localeCompare(a.date)).slice(0,100);
+  const rows = newest(state.rewardHistory);
   if (phone()) return `<h1 style="margin-bottom:12px">Belohnungshistorie</h1>
     ${cards(rows.map(h => ({ act:'rewardHistForm', id:h.id, lead:avatar(member(h.memberId),'sm'), title:esc(plainName(h.name)), sub:`${fmtShort(h.date)} · ${esc(mName(h.memberId))}`, right:`<span class="chip bad">-${h.cost}</span>` })), 'Noch keine Einträge.')}`;
   return `<div class="panel"><div class="bar-head"><h2>Belohnungshistorie</h2></div>
-  <div class="scroll"><table><thead><tr><th>Datum</th><th>Person</th><th>Belohnung</th><th class="num">Kosten</th></tr></thead><tbody>
-  ${rows.map(h => `<tr class="click" data-act="rewardHistForm" data-id="${esc(h.id)}"><td>${fmtShort(h.date)}</td><td>${who(h.memberId)}</td><td>${esc(plainName(h.name))}</td><td class="num">-${h.cost}</td></tr>`).join('')}
+  <div class="scroll"><table><thead><tr>${selTh()}<th>Datum</th><th>Person</th><th>Belohnung</th><th class="num">Kosten</th></tr></thead><tbody>
+  ${rows.map(h => `<tr ${rowAttrs('rewardHistForm', h.id)}>${selTd(h.id)}<td>${fmtShort(h.date)}</td><td>${who(h.memberId)}</td><td>${esc(plainName(h.name))}</td><td class="num">-${h.cost}</td></tr>`).join('')}
   </tbody></table></div><p class="muted small">Zeile antippen zum Ändern oder Löschen.</p></div>`;
 }
 function adminFamily() {
   if (phone()) return `<div class="bar-head"><h1>Familie</h1><button class="btn" data-act="memberForm">${ic('plus')}Neu</button></div>
     ${cards(activeMembers().map(m => ({ act:'memberForm', id:m.id, lead:avatar(m,'sm'), title:esc(m.name), sub:`${balance(m.id)} Punkte` })), 'Noch keine Mitglieder.')}`;
   return `<div class="panel"><div class="bar-head"><h2>Familie</h2><button class="btn" data-act="memberForm">${ic('plus')}Mitglied hinzufügen</button></div>
-  <table><thead><tr><th></th><th>Name</th><th class="num">Punkte</th></tr></thead><tbody>
-  ${activeMembers().map(m => `<tr class="click" data-act="memberForm" data-id="${esc(m.id)}"><td style="width:60px">${avatar(m,'sm')}</td><td>${esc(m.name)}</td><td class="num">${balance(m.id)}</td></tr>`).join('')}
+  <table><thead><tr>${selTh()}<th></th><th>Name</th><th class="num">Punkte</th></tr></thead><tbody>
+  ${activeMembers().map(m => `<tr ${rowAttrs('memberForm', m.id)}>${selTd(m.id)}<td style="width:60px">${avatar(m,'sm')}</td><td>${esc(m.name)}</td><td class="num">${balance(m.id)}</td></tr>`).join('')}
   </tbody></table></div>`;
 }
 function adminSettings() {
@@ -1395,6 +1434,22 @@ function toggle(btn) {
   if (ui.filter !== 'alle') { state.taskHistory.push(entry(day, inst, ui.filter, true)); save(); render(); toast(`Aufgabe erledigt, ${mName(ui.filter)}!`, `+${task.points} Punkte`); return; }
   whoDidIt(inst);
 }
+function selDelete() {
+  const n = ui.sel.size, [one, many] = SEL_WORDS[ui.admin];
+  const note = { tasks:'Bereits erledigte Einträge bleiben in der Historie.', rewards:'Bereits eingelöste Belohnungen bleiben in der Historie.',
+    family:'Sie verschwinden aus dem Alltag. Historie und Punkte bleiben erhalten.', taskHist:'Die Punkte werden automatisch neu berechnet.', rewardHist:'Die Punkte werden automatisch neu berechnet.' }[ui.admin];
+  modal(`<h2>${n} ${n === 1 ? one : many} löschen?</h2>${closeX}<p class="muted">${note}</p>
+    <div class="actions"><button class="btn ghost" data-act="close">Abbrechen</button><button class="btn coral" data-act="selYes">Ja, löschen</button></div>`);
+}
+function selApply() {
+  const ids = ui.sel, n = ids.size, keep = x => !ids.has(x.id);
+  if (ui.admin === 'tasks') state.tasks = state.tasks.filter(keep);
+  if (ui.admin === 'rewards') state.rewards = state.rewards.filter(keep);
+  if (ui.admin === 'taskHist') state.taskHistory = state.taskHistory.filter(keep);
+  if (ui.admin === 'rewardHist') state.rewardHistory = state.rewardHistory.filter(keep);
+  if (ui.admin === 'family') { state.members.forEach(m => { if (ids.has(m.id)) m.active = false; }); if (ids.has(ui.filter)) ui.filter = 'alle'; }
+  ui.sel = null; closeModal(); save(); render(); toast(`${n} gelöscht`);
+}
 /* Punkte gehen nur nach ausdrücklicher Bestätigung wieder weg */
 function undoTask(h, task) {
   const n = Number(h.points);
@@ -1424,12 +1479,18 @@ document.addEventListener('click', e => {
   const a = el.dataset.act, id = el.dataset.id;
   if (a === 'veil') { if (e.target === el && !wiz) closeModal(); return; }
   const acts = {
-    nav() { ui.view = el.dataset.v; ui.adminMenu = true; render(); scrollTo(0, 0); },
-    adminBack() { ui.adminMenu = true; render(); scrollTo(0, 0); },
+    selStart() { ui.sel = new Set(); render(); },
+    selEnd() { ui.sel = null; render(); },
+    selToggle() { const box = $('.scroll'), x = box?.scrollLeft; ui.sel.has(id) ? ui.sel.delete(id) : ui.sel.add(id); render(); if (box) $('.scroll').scrollLeft = x; },
+    selAll() { const all = selectable(); ui.sel = new Set(all.every(i => ui.sel.has(i)) ? [] : all); render(); },
+    selDelete() { selDelete(); },
+    selYes() { selApply(); },
+    nav() { ui.sel = null; ui.view = el.dataset.v; ui.adminMenu = true; render(); scrollTo(0, 0); },
+    adminBack() { ui.sel = null; ui.adminMenu = true; render(); scrollTo(0, 0); },
     filter() { ui.filter = id; render(); },
     toggle() { toggle(el); },
-    lock() { ui.unlocked = false; render(); },
-    adminTab() { ui.admin = el.dataset.v; ui.adminMenu = false; render(); scrollTo(0, 0); },
+    lock() { ui.sel = null; ui.unlocked = false; render(); },
+    adminTab() { ui.sel = null; ui.admin = el.dataset.v; ui.adminMenu = false; render(); scrollTo(0, 0); },
     taskForm() { if (id) taskForm(id); else presetPicker('task'); },
     rewardForm() { if (id) rewardForm(id); else presetPicker('reward'); },
     presetBlank() { if (el.dataset.kind === 'task') taskForm(); else rewardForm(); },
