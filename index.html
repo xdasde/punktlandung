@@ -328,6 +328,8 @@
   .selbar .btn { min-height: 44px; padding: 7px 13px; }
   .selpad { height: 72px; }
   .grade-points { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+  .log { margin: 0; padding-left: 20px; }
+  .log li { margin: 4px 0; }
   .back { display: inline-flex; align-items: center; gap: 4px; min-height: 44px; color: var(--primary); font-weight: 620; margin: -6px 0 2px -4px; }
   .back svg { transform: rotate(180deg); }
   .menu-ic { width: 44px; height: 44px; border-radius: 12px; background: var(--primary-soft); color: var(--primary); display: flex; align-items: center; justify-content: center; font-size: 19px; flex: none; }
@@ -401,10 +403,10 @@
 <div id="modal"></div>
 <div id="toast" aria-live="polite"></div>
 
-<script src="icons.js?v=855e8098"></script>
+<script src="icons.js?v=c87a9ba8"></script>
 <script>
 'use strict';
-const APP_VERSION = '855e8098'; // setzt tools/embed-assets.py
+const APP_VERSION = 'c87a9ba8'; // setzt tools/embed-assets.py
 
 /* ==========================================================================
    Speicher-Schnittstelle
@@ -665,6 +667,7 @@ const SVG = {
   finger:'<path d="M7.500 4.500A9 9 0 0 1 20.500 12v1M4.500 8A9 9 0 0 0 3.500 12v2M8 19.500c.7-1.700 1-3.500 1-5.500v-2a3 3 0 0 1 6 0v2.500M12 12v2.500c0 2.300-.5 4.500-1.500 6.500M15 18c-.1 1-.3 2-.6 3M18.500 15.500c0 1-.1 2-.3 3"/>',
   back:'<path d="M15 5l-7 7 7 7"/>',
   sync:'<path d="M20 11a8 8 0 0 0-14.300-4.300L4 8.500M4 4v4.500h4.500M4 13a8 8 0 0 0 14.300 4.300L20 15.500M20 20v-4.500h-4.500"/>',
+  news:'<path d="M5 4h11a2 2 0 0 1 2 2v13a1 1 0 0 0 2 0V8M5 4a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h14M8 8h6M8 12h6M8 16h4"/>',
   flame:'<path d="M12 3c1 3.500 5.500 5.500 5.500 10.500a5.500 5.500 0 01-11 0c0-2 1-3.500 2-4.500.3 1.500 1 2.500 2 3 0-3.500 0-6 1.500-9z"/>',
   alert:'<circle cx="12" cy="12" r="9"/><path d="M12 7.500V13M12 16.500v.01"/>',
 };
@@ -1207,11 +1210,12 @@ function viewAdmin() {
   const tabs = [['tasks','Aufgaben','tasks',`${state.tasks.length} angelegt`],['rewards','Belohnungen','gift',`${state.rewards.length} angelegt`],
     ['taskHist','Aufgabenhistorie','clock',`${state.taskHistory.length} Einträge`],['rewardHist','Belohnungshistorie','clock',`${state.rewardHistory.length} Einträge`],
     ...(state.grades.active ? [['grades','Schulnoten','grad',`${state.taskHistory.filter(isGrade).length} Noten`]] : []),
-    ['family','Familie','users',`${activeMembers().length} Personen`],['settings','Einstellungen','gear','PIN, Ziel, Export']];
+    ['family','Familie','users',`${activeMembers().length} Personen`],['settings','Einstellungen','gear','PIN, Ziel, Export'],
+    ['changelog','Changelog','news',`Version ${CHANGELOG[0][0]}`]];
   if (phone() && ui.adminMenu) return `<div class="top"><h1>Verwaltung</h1><button class="btn ghost" data-act="lock">${ic('lock')}Sperren</button></div>
     <div class="list">${tabs.map(([k,l,i,sub]) => `<button class="row" data-act="adminTab" data-v="${k}"><span class="menu-ic">${ic(i)}</span><span class="what"><b>${l}</b><span class="sub">${sub}</span></span><span class="go">${ic('chev')}</span></button>`).join('')}</div>`;
-  const body = { grades:adminGrades, tasks:adminTasks, rewards:adminRewards, taskHist:adminTaskHist, rewardHist:adminRewardHist, family:adminFamily, settings:adminSettings }[ui.admin]();
-  const canSel = ui.admin !== 'settings' && selectable().length;
+  const body = { changelog:adminChangelog, grades:adminGrades, tasks:adminTasks, rewards:adminRewards, taskHist:adminTaskHist, rewardHist:adminRewardHist, family:adminFamily, settings:adminSettings }[ui.admin]();
+  const canSel = ui.admin !== 'settings' && ui.admin !== 'changelog' && selectable().length;
   const selBtn = canSel && !ui.sel ? `<button class="btn ghost" data-act="selStart">Auswählen</button>` : '';
   if (phone()) return `<div class="sel-start"><button class="back" data-act="adminBack" style="margin:0">${ic('chev')}Verwaltung</button>${selBtn}</div>${body}${selBar()}`;
   return `<div class="top"><h1>Verwaltung</h1><button class="btn ghost" data-act="lock">${ic('lock')}Sperren</button></div>
@@ -1265,6 +1269,24 @@ function adminRewardHist() {
   <div class="scroll"><table><thead><tr>${selTh()}<th>Datum</th><th>Person</th><th>Belohnung</th><th class="num">Kosten</th></tr></thead><tbody>
   ${rows.map(h => `<tr ${rowAttrs('rewardHistForm', h.id)}>${selTd(h.id)}<td>${fmtShort(h.date)}</td><td>${who(h.memberId)}</td><td>${esc(plainName(h.name))}</td><td class="num">-${h.cost}</td></tr>`).join('')}
   </tbody></table></div><p class="muted small">Zeile antippen zum Ändern oder Löschen.</p></div>`;
+}
+/* Neue Einträge oben ergänzen, in Alltagssprache und bei jedem Release */
+const CHANGELOG = [
+  ['1.9', 'Spaß', ['Konfetti, Sterne und wechselnde Sprüche bei jeder erledigten Aufgabe','Sieben kurze Melodien und große Feiern für besondere Momente','Effekte und Sounds je Gerät abschaltbar']],
+  ['1.8', 'Zuverlässigkeit', ['Updates kommen zuverlässiger an, auch auf dem iPad','Knopf „Nach Update suchen“ in den Einstellungen','Verwaltung für iPad hoch- und querkant neu angeordnet']],
+  ['1.7', 'Planen', ['Zeitstrahl mit Uhrzeiten und „Jetzt“-Linie','Vorschau auf kommende Tage per Pfeil, Datum oder Wischen','Mehrere Wochentage je Aufgabe','Bonusaufgaben beliebig oft pro Tag','Statistik liegt jetzt unten im Dashboard „Aufgaben“']],
+  ['1.6', 'Mehrere Geräte', ['Familien-Code: Geräte gleichen sich verschlüsselt ab','Aktualisieren-Knopf, wenn ein Gerät verbunden ist','Entsperren per Fingerabdruck oder Gesicht']],
+  ['1.5', 'Gemeinsam', ['Team-Bonus: Bonusaufgaben zusammen erledigen','Addon Schulnoten: gute Noten mit Punkten belohnen','Punkte-Historie je Person in der Statistik','Funktionen und Addons einzeln abschaltbar']],
+  ['1.4', 'Verwaltung', ['Mehrfachauswahl zum Löschen','Haken nur noch mit Bestätigung zurücknehmen','Profilfotos zuschneiden und vergrößern','Eigene Handy-Ansicht der Verwaltung']],
+  ['1.3', 'Vorlagen', ['100 Aufgaben-Vorlagen mit Icons','100 Belohnungs-Vorlagen in sieben Bereichen']],
+  ['1.2', 'Motivation', ['Familienziel für die ganze Woche','Serien-Bonus für mehrere Tage in Folge','Aufgaben für mehrere ausgewählte Personen']],
+  ['1.1', 'Neues Aussehen', ['Neues Design mit Grafiken und Profilfotos','Als App installierbar und offline nutzbar','Automatische Updates']],
+  ['1.0', 'Start', ['Aufgaben, Belohnungen, Statistik und Verwaltung','Geführte Einrichtung mit eigener PIN','Daten exportieren und importieren']],
+];
+function adminChangelog() {
+  return `${compact() ? '<h1 class="sub-title" style="margin-bottom:12px">Changelog</h1>' : ''}
+    ${CHANGELOG.map(([v, title, items], i) => `<div class="panel"><h2>Version ${v}: ${title}${i ? '' : ' <span class="chip ok">Neu</span>'}</h2>
+      <ul class="log">${items.map(t => `<li>${t}</li>`).join('')}</ul></div>`).join('')}`;
 }
 const SUBJECTS = ['Mathe','Deutsch','Englisch','Sachunterricht','Kunst','Musik','Sport','Religion','Biologie','Geschichte','Französisch','Physik','Chemie','Erdkunde'];
 function adminGrades() {
