@@ -1,0 +1,8 @@
+name = "punktlandung-sync"
+main = "src/index.js"
+compatibility_date = "2026-10-01"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "punktlandung-sync"
+database_id = "NACH_DEM_ANLEGEN_EINTRAGEN"

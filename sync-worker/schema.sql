@@ -1,0 +1,6 @@
+CREATE TABLE IF NOT EXISTS blobs (
+  id TEXT PRIMARY KEY,
+  version INTEGER NOT NULL,
+  data BLOB NOT NULL,
+  updated INTEGER NOT NULL
+);

@@ -353,10 +353,10 @@
 <div id="modal"></div>
 <div id="toast" aria-live="polite"></div>
 
-<script src="icons.js?v=59b809b7"></script>
+<script src="icons.js?v=e3537019"></script>
 <script>
 'use strict';
-const APP_VERSION = '59b809b7'; // setzt tools/embed-assets.py
+const APP_VERSION = 'e3537019'; // setzt tools/embed-assets.py
 
 /* ==========================================================================
    Speicher-Schnittstelle
@@ -757,7 +757,7 @@ const groupOf = h => h.group ? state.taskHistory.filter(x => x.group === h.group
 const sharedPoints = p => Math.max(1, Math.round(Number(p) * state.share.percent / 100));
 const histName = h => h.name + (h.group ? ' (zusammen)' : '');
 function entry(day, inst, memberId, ok) {
-  return { id:uid(), date:day, taskId:inst.task.id, slot:inst.slot, memberId,
+  return { id:`e-${day}-${inst.task.id}-${inst.slot}-${memberId}`, date:day, taskId:inst.task.id, slot:inst.slot, memberId,
            name:inst.task.name, status: ok ? 'Erledigt' : 'Nicht erledigt', points: ok ? Number(inst.task.points) : 0 };
 }
 function findEntry(day, inst) {
@@ -833,13 +833,70 @@ function closeDays() {
   while (day < t) {
     for (const inst of instances(state, day))
       if (inst.task.type === 'Pflicht' && !findEntry(day, inst)) {
-        state.taskHistory.push(entry(day, inst, inst.memberId, false));
+        state.taskHistory.push({ ...entry(day, inst, inst.memberId, false), auto:true });
         changed = true;
       }
     state.lastClosed = day; changed = true;
     day = addDays(day, 1);
   }
   if (changed) save();
+}
+
+/* --------- Abgleich-Daten ---------
+   Jeder Eintrag trägt u, die Zeit der letzten Änderung, gelöschte IDs stehen in deleted. So bleibt beim
+   Zusammenführen die neueste Fassung erhalten. stamp() erkennt Änderungen zentral durch Vergleich mit
+   dem letzten Stand. Automatische „Nicht erledigt“-Einträge bekommen u = 1, damit ein erledigter Haken
+   von einem anderen Gerät immer gewinnt. */
+const COLLS = ['members','tasks','rewards','taskHistory','rewardHistory'];
+const SYNC_KEYS = ['familyName','pin','demo','goal','streak','share','features','grades'];
+const bare = x => { const { u, ...rest } = x; return JSON.stringify(rest); };
+let snap = null;
+function snapshot() {
+  state.deleted ??= {}; state.meta ??= {};
+  snap = { items:{}, keys:{}, deleted:state.deleted, meta:state.meta };
+  for (const c of COLLS) for (const x of state[c]) snap.items[`${c}:${x.id}`] = bare(x);
+  for (const k of SYNC_KEYS) snap.keys[k] = JSON.stringify(state[k]);
+}
+function stamp() {
+  const t = Date.now(), seen = new Set();
+  let dirty = false;
+  state.deleted = { ...snap.deleted, ...state.deleted };
+  state.meta = { ...snap.meta, ...state.meta };
+  for (const c of COLLS) for (const x of state[c]) {
+    const key = `${c}:${x.id}`, j = bare(x), isNew = !(key in snap.items);
+    seen.add(key);
+    if (snap.items[key] === j) continue;
+    x.u = isNew && x.auto ? 1 : t;
+    delete state.deleted[x.id];
+    snap.items[key] = j; dirty = true;
+  }
+  for (const key of Object.keys(snap.items)) if (!seen.has(key)) {
+    state.deleted[key.slice(key.indexOf(':') + 1)] = t;
+    delete snap.items[key]; dirty = true;
+  }
+  for (const k of SYNC_KEYS) {
+    const j = JSON.stringify(state[k]);
+    if (snap.keys[k] !== j) { state.meta[k] = t; snap.keys[k] = j; dirty = true; }
+  }
+  snap.deleted = state.deleted; snap.meta = state.meta;
+  return dirty;
+}
+/* Ein echter Eintrag schlägt immer ein automatisches „Nicht erledigt“, sonst gewinnt die neuere Änderung */
+const beats = (a, b) => !!a.auto !== !!b.auto ? !a.auto : (a.u ?? 0) > (b.u ?? 0);
+function mergeState(r) {
+  const del = { ...state.deleted };
+  for (const [id, t] of Object.entries(r.deleted ?? {})) del[id] = Math.max(del[id] ?? 0, t);
+  for (const c of COLLS) {
+    const byId = new Map(state[c].map(x => [x.id, x]));
+    for (const x of r[c] ?? []) { const l = byId.get(x.id); if (!l || beats(x, l)) byId.set(x.id, x); }
+    state[c] = [...byId.values()].filter(x => del[x.id] === undefined || (x.u ?? 0) > del[x.id]);
+  }
+  state.deleted = del;
+  for (const k of SYNC_KEYS) if ((r.meta?.[k] ?? 0) > (state.meta[k] ?? 0)) { state[k] = r[k]; state.meta[k] = r.meta[k]; }
+  snapshot();
+  // Hat dieses Gerät etwas, das dem Stand im Netz fehlt? Dann muss es ihn wieder hochladen.
+  const newer = COLLS.some(c => { const theirs = new Map((r[c] ?? []).map(x => [x.id, x])); return state[c].some(x => !theirs.has(x.id) || beats(x, theirs.get(x.id))); });
+  return newer || Object.keys(del).some(id => !r.deleted?.[id] || r.deleted[id] < del[id]) || SYNC_KEYS.some(k => (state.meta[k] ?? 0) > (r.meta?.[k] ?? 0));
 }
 
 /* --------- Zustand --------- */
@@ -886,7 +943,9 @@ function save() {
     const h = added.find(x => x.date === today());
     setTimeout(() => { toast(`${mName(h.memberId)}: ${h.name.replace('Serien-Bonus (','').replace(')','')} in Folge!`, `+${h.points} Punkte`); if (ui.view === 'rewards') render(); }, 0);
   }
-  if (!Store.save(state)) toast('Speicher voll. Bitte Fotos entfernen oder Daten exportieren.', '', true); }
+  const dirty = snap ? stamp() : false;
+  if (!Store.save(state)) toast('Speicher voll. Bitte Fotos entfernen oder Daten exportieren.', '', true);
+  if (dirty) syncQueue(); }
 const member = id => state.members.find(m => m.id === id);
 const activeMembers = () => state.members.filter(m => m.active);
 const mName = id => member(id)?.name ?? 'Unbekannt';
@@ -1160,6 +1219,7 @@ function adminSettings() {
       </div><p class="muted small" style="margin-top:0">Änderungen an der Serie gelten ab heute.</p>` : ''}
       <button class="btn">Speichern</button>
     </form></div>` : ''}
+  ${syncPanel()}
   <div class="panel narrow"><h2>Daten exportieren und importieren</h2>
     <p class="muted">Die Daten liegen nur auf diesem Gerät. Mit dem Export sicherst du sie als Datei oder gibst sie an ein anderes Gerät weiter, zum Beispiel per AirDrop. Der Import ersetzt alle Daten auf dem Gerät, auch die PIN. Die Datei enthält alles im Klartext, auch Profilfotos.</p>
     <div class="actions nowrap-start">
@@ -1539,6 +1599,123 @@ async function bioUnlock() {
   } catch { toast('Nicht erkannt, bitte PIN eingeben', '', true); }
 }
 
+/* --------- Familien-Code: verschlüsselter Abgleich zwischen Geräten ---------
+   Aus dem Code entstehen Speicherort und Schlüssel. Der Server sieht nur einen verschlüsselten Block.
+   Die Verbindung liegt außerhalb von state, sie gilt je Gerät und gehört nicht in einen Export. */
+const SYNC_DEFAULT = ''; // Adresse des Workers, solange leer ist der Bereich ausgeblendet
+const SYNC_URL = flag.get('punktlandung.syncUrl') || SYNC_DEFAULT;
+const SYNC_KEY = 'punktlandung.sync', CODE_ABC = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789X';
+const syncOn = () => onWeb && !!SYNC_URL && !!crypto.subtle;
+const syncCfg = () => { try { return JSON.parse(flag.get(SYNC_KEY)); } catch { return null; } };
+const syncSet = c => flag.set(SYNC_KEY, JSON.stringify(c));
+const syncView = { busy:false, last:null, error:null, timer:null };
+const normCode = t => t.toUpperCase().replace(/[^A-Z0-9]/g, '');
+function newCode() {
+  const raw = [...randomBytes(16)].map(b => CODE_ABC[b % 32]).join('');
+  return raw.match(/.{4}/g).join('-');
+}
+const sha = async t => new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(t)));
+async function syncKeys(code) {
+  const c = normCode(code);
+  const id = [...(await sha('punktlandung-id:' + c))].slice(0,16).map(b => b.toString(16).padStart(2,'0')).join('');
+  const key = await crypto.subtle.importKey('raw', await sha('punktlandung-key:' + c), 'AES-GCM', false, ['encrypt','decrypt']);
+  return { id, key };
+}
+async function pipeBytes(bytes, stream) { return new Uint8Array(await new Response(new Blob([bytes]).stream().pipeThrough(stream)).arrayBuffer()); }
+async function sealState(key) {
+  const { lastClosed, ...data } = state;
+  let body = new TextEncoder().encode(JSON.stringify(data)), zip = 0;
+  if (window.CompressionStream) { body = await pipeBytes(body, new CompressionStream('gzip')); zip = 1; }
+  const iv = randomBytes(12), box = new Uint8Array(await crypto.subtle.encrypt({ name:'AES-GCM', iv }, key, body));
+  const out = new Uint8Array(13 + box.length);
+  out[0] = zip; out.set(iv, 1); out.set(box, 13);
+  return out;
+}
+async function openState(key, bytes) {
+  let body = new Uint8Array(await crypto.subtle.decrypt({ name:'AES-GCM', iv:bytes.slice(1,13) }, key, bytes.slice(13)));
+  if (bytes[0]) body = await pipeBytes(body, new DecompressionStream('gzip'));
+  return JSON.parse(new TextDecoder().decode(body));
+}
+const syncBlocked = () => !!$('#modal').innerHTML || !!ui.sel || !!$('.crop-veil');
+function syncQueue() {
+  const c = syncCfg();
+  if (!c) return;
+  syncSet({ ...c, dirty:true });
+  clearTimeout(syncView.timer);
+  syncView.timer = setTimeout(syncNow, 3000);
+}
+async function syncNow(force = false) {
+  const c = syncCfg();
+  if (!c || !syncOn() || syncView.busy || !navigator.onLine) return;
+  if (syncBlocked() && !force) { syncView.timer = setTimeout(syncNow, 15000); return; }
+  syncView.busy = true;
+  try {
+    const { id, key } = await syncKeys(c.code);
+    for (let tries = 0; tries < 3; tries++) {
+      const cur = syncCfg();
+      const res = await fetch(`${SYNC_URL}/v1/${id}`, { headers: cur.version ? { 'If-None-Match':String(cur.version) } : {}, cache:'no-store' });
+      if (res.status === 200) {
+        const remote = await openState(key, new Uint8Array(await res.arrayBuffer()));
+        const newer = mergeState(remote);
+        syncSet({ ...syncCfg(), version:Number(res.headers.get('ETag')), ...(newer ? { dirty:true } : {}) });
+        closeDays(); save();
+        if (!syncBlocked()) render();
+      } else if (res.status !== 304 && res.status !== 404) throw new Error('Server ' + res.status);
+      const now = syncCfg();
+      if (!now.dirty) break;
+      const put = await fetch(`${SYNC_URL}/v1/${id}`, { method:'PUT', headers:{ 'If-Match':String(res.status === 404 ? 0 : now.version ?? 0) }, body:await sealState(key) });
+      if (put.status === 412) continue; // Ein anderes Gerät war schneller: holen, zusammenführen, nochmal
+      if (!put.ok) throw new Error('Server ' + put.status);
+      syncSet({ ...syncCfg(), version:Number(put.headers.get('ETag')), dirty:false });
+      break;
+    }
+    syncView.last = new Date(); syncView.error = null;
+  } catch (err) {
+    syncView.error = err.name === 'OperationError' ? 'Dieser Code passt nicht zu den Daten.' : 'Gerade nicht erreichbar, es wird später erneut versucht.';
+  } finally { syncView.busy = false; }
+  if (ui.view === 'admin' && ui.admin === 'settings' && !syncBlocked()) render();
+}
+async function syncCreate() {
+  syncSet({ code:newCode(), version:0, dirty:true });
+  await syncNow(true);
+  render();
+  if (!syncView.error) toast('Familien-Code erstellt');
+}
+function syncJoinForm() {
+  modal(`<h2>Familien-Code eingeben</h2>${closeX}<form data-form="modal">
+    <p class="muted">Den Code findest du auf dem anderen Gerät unter Einstellungen. Die Daten dieses Geräts werden durch die Familiendaten ersetzt.</p>
+    <label class="field"><span>Familien-Code</span><input name="code" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="ABCD-EFGH-JKMN-PQRS" required></label>
+    <div class="actions"><button type="button" class="btn ghost" data-act="close">Abbrechen</button><button class="btn">Verbinden</button></div></form>`, fd => {
+      syncJoin(fd.get('code')); return false;
+    });
+}
+async function syncJoin(code) {
+  try {
+    const { id, key } = await syncKeys(code);
+    const res = await fetch(`${SYNC_URL}/v1/${id}`, { cache:'no-store' });
+    if (res.status === 404) { toast('Diesen Code gibt es nicht', '', true); return; }
+    if (!res.ok) throw new Error('Server');
+    const remote = await openState(key, new Uint8Array(await res.arrayBuffer()));
+    const lastClosed = addDays(today(), -1);
+    state = { ...migrate(remote), lastClosed };
+    snapshot();
+    syncSet({ code:normCode(code).match(/.{4}/g).join('-'), version:Number(res.headers.get('ETag')), dirty:false });
+    closeModal(); save(); render(); toast('Gerät verbunden');
+  } catch (err) { toast(err.name === 'OperationError' ? 'Der Code passt nicht' : 'Verbinden hat nicht geklappt', '', true); }
+}
+function syncPanel() {
+  if (!syncOn()) return '';
+  const c = syncCfg();
+  if (!c) return `<div class="panel narrow"><h2>Geräte verbinden</h2>
+    <p class="muted">Mit einem Familien-Code gleichen sich mehrere Geräte automatisch ab. Ohne Konto, die Daten werden vor dem Versand verschlüsselt.</p>
+    <div class="actions nowrap-start"><button class="btn" data-act="syncCreate">Familien-Code erstellen</button><button class="btn ghost" data-act="syncJoinForm">Code eingeben</button></div></div>`;
+  const when = syncView.last ? syncView.last.toLocaleTimeString('de-DE', { hour:'2-digit', minute:'2-digit' }) : null;
+  return `<div class="panel narrow"><h2>Geräte verbinden</h2>
+    <p class="muted">${syncView.error ? esc(syncView.error) : when ? `Zuletzt abgeglichen um ${when} Uhr.` : 'Verbunden.'}</p>
+    <label class="field"><span>Familien-Code, wer ihn hat, kann alle Daten lesen</span><input id="syncCode" type="password" readonly value="${esc(c.code)}" autocomplete="off"></label>
+    <div class="actions nowrap-start"><button class="btn ghost" data-act="syncShow">Anzeigen</button><button class="btn ghost" data-act="syncRun">Jetzt abgleichen</button><button class="btn danger" data-act="syncLeave">Trennen</button></div></div>`;
+}
+
 /* --------- Automatische Updates ---------
    Offene Apps prüfen stündlich und beim Zurückholen in den Vordergrund, ob eine neue
    Version vorliegt. Sie laden nur neu, wenn gerade kein Dialog offen ist. */
@@ -1697,6 +1874,9 @@ document.addEventListener('click', e => {
     selYes() { selApply(); },
     nav() { ui.sel = null; ui.view = el.dataset.v; ui.adminMenu = true; render(); scrollTo(0, 0); if (ui.view === 'admin' && !ui.unlocked && bioOn()) bioUnlock(); },
     bioUnlock() { bioUnlock(); },
+    syncCreate() { syncCreate(); }, syncJoinForm() { syncJoinForm(); }, syncRun() { syncNow(true); },
+    syncShow() { $('#syncCode').type = 'text'; },
+    syncLeave() { if (confirm('Dieses Gerät trennen? Die Daten bleiben hier erhalten, gleichen sich aber nicht mehr ab.')) { try { localStorage.removeItem(SYNC_KEY); } catch {} render(); } },
     adminBack() { ui.sel = null; ui.adminMenu = true; render(); scrollTo(0, 0); },
     filter() { ui.filter = id; render(); },
     toggle() { toggle(el); },
@@ -1807,6 +1987,7 @@ phoneQuery.addEventListener('change', () => { if (!$('#modal').innerHTML) render
 // Tablet bleibt über Nacht an: Datumswechsel erkennen
 setInterval(() => { if (ui.day !== today()) { ui.day = today(); closeDays(); render(); } }, 60000);
 
+snapshot();
 navigator.storage?.persist?.().catch(() => {}); // Browser bitten, die Daten nicht aufzuräumen
 closeDays();
 save();
@@ -1815,7 +1996,10 @@ announceUpdate();
 if (onWeb && window.PublicKeyCredential) PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable().then(v => { bioReady = v; }).catch(() => {});
 if (onWeb && 'serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
 setInterval(checkUpdate, 3600000);
-document.addEventListener('visibilitychange', () => { if (!document.hidden) checkUpdate(); });
+document.addEventListener('visibilitychange', () => { if (!document.hidden) { checkUpdate(); syncNow(); } });
+setInterval(() => { if (!document.hidden) syncNow(); }, 120000);
+addEventListener('online', () => syncNow());
+syncNow();
 </script>
 </body>
 </html>

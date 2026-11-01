@@ -13,3 +13,5 @@ Alle Daten bleiben lokal auf dem Gerät. In diesem Repository liegt nur die App 
 **Grafiken ändern:** Die Dateien in `assets/` werden in `icons.js` zusammengefasst. Vor jedem Release `python3 tools/embed-assets.py` ausführen: Das baut `icons.js` neu und setzt die Version, mit der sich installierte Apps selbst aktualisieren.
 
 **Vorlagen-Icons:** Die Vorlagen-Icons aus `tools/task-icons.txt` stammen aus der Schrift Noto Color Emoji (SIL Open Font License) und werden mit `tools/render-task-icons.js` als Bilder erzeugt, damit sie auf allen Geräten gleich aussehen.
+
+**Familien-Code (Abgleich):** Der Ordner `sync-worker/` enthält einen kleinen Cloudflare Worker, der nur verschlüsselte Blöcke speichert. Einrichten: `npx wrangler d1 create punktlandung-sync`, die `database_id` in `sync-worker/wrangler.toml` eintragen, `npx wrangler d1 execute punktlandung-sync --remote --file=schema.sql`, dann `npx wrangler deploy`. Die Adresse des Workers kommt in `SYNC_DEFAULT` in `index.html`. Solange sie leer ist, bleibt der Bereich ausgeblendet.
