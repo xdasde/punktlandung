@@ -390,10 +390,10 @@
 <div id="modal"></div>
 <div id="toast" aria-live="polite"></div>
 
-<script src="icons.js?v=e9862b52"></script>
+<script src="icons.js?v=9fdea7a1"></script>
 <script>
 'use strict';
-const APP_VERSION = 'e9862b52'; // setzt tools/embed-assets.py
+const APP_VERSION = '9fdea7a1'; // setzt tools/embed-assets.py
 
 /* ==========================================================================
    Speicher-Schnittstelle
@@ -1326,7 +1326,7 @@ function adminSettings() {
       <button class="btn ghost" data-act="resetDemo">Demodaten neu laden</button>
       <button class="btn danger" data-act="wizStart">Neu einrichten</button>
     </div></div>
-  <p class="muted small">Version ${APP_VERSION}. Updates werden automatisch installiert.</p></div>`;
+  <div class="actions nowrap-start" style="align-items:center"><span class="muted small">Version ${APP_VERSION}. Updates werden automatisch installiert.</span>${onWeb ? `<button class="btn ghost" data-act="updateCheck">Nach Update suchen</button>` : ''}</div></div>`;
 }
 
 /* --------- Dialoge --------- */
@@ -1828,13 +1828,32 @@ function syncPanel() {
 /* --------- Automatische Updates ---------
    Offene Apps prüfen stündlich und beim Zurückholen in den Vordergrund, ob eine neue
    Version vorliegt. Sie laden nur neu, wenn gerade kein Dialog offen ist. */
-async function checkUpdate() {
-  if (!onWeb || !navigator.onLine || APP_VERSION === 'dev') return;
+const session = { get: k => { try { return sessionStorage.getItem(k); } catch { return null; } }, set: (k, v) => { try { sessionStorage.setItem(k, v); } catch {} } };
+async function liveVersion() {
+  const res = await fetch(`./?check=${Date.now()}`, { cache:'no-store' });
+  return (await res.text()).match(/APP_VERSION = '(\w+)'/)?.[1];
+}
+/* Stufe 1: neu laden. Kommt die neue Version so nicht an, Stufe 2: Offline-Speicher der App neu aufbauen.
+   Die Familiendaten liegen getrennt davon und bleiben dabei unberührt. */
+async function applyUpdate(remote) {
+  const tried = session.get('punktlandung.update');
+  if (tried === `${remote}!`) return;
+  if (tried !== remote) { session.set('punktlandung.update', remote); location.reload(); return; }
+  session.set('punktlandung.update', `${remote}!`);
+  for (const r of await navigator.serviceWorker?.getRegistrations?.() ?? []) await r.unregister();
+  for (const name of await caches.keys()) await caches.delete(name);
+  location.reload();
+}
+async function checkUpdate(manual = false) {
+  if (!onWeb || APP_VERSION === 'dev' || (!navigator.onLine && !manual)) return;
   try {
-    const res = await fetch('./', { cache:'no-cache' });
-    const remote = (await res.text()).match(/APP_VERSION = '(\w+)'/)?.[1];
-    if (remote && remote !== APP_VERSION && !$('#modal').innerHTML) location.reload();
-  } catch { /* ohne Netz einfach beim nächsten Mal */ }
+    navigator.serviceWorker?.getRegistration?.().then(r => r?.update()).catch(() => {});
+    const remote = await liveVersion();
+    if (remote && remote !== APP_VERSION) {
+      if (manual) closeModal();
+      if (!$('#modal').innerHTML && !ui.sel && !$('.crop-veil')) await applyUpdate(remote);
+    } else if (manual) toast('Du hast die neueste Version');
+  } catch { if (manual) toast('Gerade keine Verbindung', '', true); }
 }
 function announceUpdate() {
   const known = flag.get('punktlandung.version');
@@ -1984,6 +2003,7 @@ document.addEventListener('click', e => {
     selYes() { selApply(); },
     nav() { ui.sel = null; ui.view = el.dataset.v; ui.adminMenu = true; render(); scrollTo(0, 0); if (ui.view === 'admin' && !ui.unlocked && bioOn()) bioUnlock(); },
     bioUnlock() { bioUnlock(); },
+    updateCheck() { checkUpdate(true); },
     syncManual() { syncManual(); }, syncCreate() { syncCreate(); }, syncJoinForm() { syncJoinForm(); }, syncRun() { syncNow(true); },
     syncShow() { $('#syncCode').type = 'text'; },
     syncLeave() { if (confirm('Dieses Gerät trennen? Die Daten bleiben hier erhalten, gleichen sich aber nicht mehr ab.')) { try { localStorage.removeItem(SYNC_KEY); } catch {} render(); } },
@@ -2124,6 +2144,7 @@ announceUpdate();
 if (onWeb && window.PublicKeyCredential) PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable().then(v => { bioReady = v; }).catch(() => {});
 if (onWeb && 'serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
 setInterval(checkUpdate, 3600000);
+setTimeout(checkUpdate, 2000);
 document.addEventListener('visibilitychange', () => { if (!document.hidden) { checkUpdate(); syncNow(); } });
 setInterval(() => { if (!document.hidden) syncNow(); }, 120000);
 addEventListener('online', () => syncNow());
