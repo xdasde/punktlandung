@@ -157,7 +157,7 @@
   .subnav button.on { background: var(--primary); color: #fff; }
   .bar-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }
   .bar-head h2 { margin: 0; }
-  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 7px; padding: 11px 20px; border-radius: 12px; font-weight: 620; background: var(--primary); color: #fff; min-height: 48px; border: 2px solid var(--primary); cursor: pointer; }
+  .btn { display: inline-flex; align-items: center; justify-content: center; text-align: center; gap: 7px; padding: 11px 20px; border-radius: 12px; font-weight: 620; background: var(--primary); color: #fff; min-height: 48px; border: 2px solid var(--primary); cursor: pointer; }
   .btn.ghost { background: #fff; color: var(--primary); }
   .btn.coral { background: var(--coral); border-color: var(--coral); color: var(--ink); }
   .btn.danger { background: #fff; color: #A83A2C; border-color: #E9BDB6; }
@@ -403,10 +403,10 @@
 <div id="modal"></div>
 <div id="toast" aria-live="polite"></div>
 
-<script src="icons.js?v=c87a9ba8"></script>
+<script src="icons.js?v=449643a3"></script>
 <script>
 'use strict';
-const APP_VERSION = 'c87a9ba8'; // setzt tools/embed-assets.py
+const APP_VERSION = '449643a3'; // setzt tools/embed-assets.py
 
 /* ==========================================================================
    Speicher-Schnittstelle
@@ -706,6 +706,7 @@ function emptyState() {
            streak: { active:true, every:5, points:10, since:today() },
            features: { pflicht:true, bonus:true },
            share: { active:true, percent:60 },
+           pool: { active:true },
            grades: { active:true, points:{ 1:500, 2:200, 3:0, 4:0, 5:0, 6:0 } },
            members: [], tasks: [], rewards: [], taskHistory: [], rewardHistory: [] };
 }
@@ -909,7 +910,7 @@ function closeDays() {
    dem letzten Stand. Automatische „Nicht erledigt“-Einträge bekommen u = 1, damit ein erledigter Haken
    von einem anderen Gerät immer gewinnt. */
 const COLLS = ['members','tasks','rewards','taskHistory','rewardHistory'];
-const SYNC_KEYS = ['familyName','pin','demo','goal','streak','share','features','grades'];
+const SYNC_KEYS = ['familyName','pin','demo','goal','streak','share','pool','features','grades'];
 const bare = x => { const { u, ...rest } = x; return JSON.stringify(rest); };
 let snap = null;
 function snapshot() {
@@ -1134,7 +1135,9 @@ function viewRewards() {
       ${run[m.id]?.run ? `<span class="chip streak" title="${run[m.id].run} Tage in Folge alle Pflichtaufgaben geschafft">${ic('flame')}${run[m.id].run} ${run[m.id].run === 1 ? 'Tag' : 'Tage'}</span>` : ''}</div>`).join('');
   const rw = state.rewards.filter(r => r.active).sort((a,b) => a.cost-b.cost).map(r =>
     `<button class="reward" data-act="redeem" data-id="${esc(r.id)}">${rewardThumb(r)}<b style="font-weight:600">${esc(plainName(r.name))}</b><span class="chip">${r.cost} P</span></button>`).join('');
-  const last = [...state.rewardHistory].sort((a,b) => b.date.localeCompare(a.date)).slice(0,5);
+  const seen = new Set(), last = [...state.rewardHistory].reverse().sort((a,b) => b.date.localeCompare(a.date))
+    .filter(h => !h.group || (!seen.has(h.group) && seen.add(h.group))).slice(0,5);
+  const part = h => h.group ? state.rewardHistory.filter(x => x.group === h.group) : [h];
   return `
     <div class="top"><h1>Belohnungen</h1>${syncBtn()}</div>
     <div class="accounts">${pts}</div>
@@ -1142,7 +1145,7 @@ function viewRewards() {
     <h2>Einlösen</h2>
     <div class="rewards">${rw || '<div class="empty">Noch keine Belohnungen angelegt.</div>'}</div>
     <h2>Zuletzt eingelöst</h2>
-    ${last.length ? `<div class="feed">${last.map(h => `<div>${ic('clock')}<span class="t">${fmtDate(h.date)} · ${esc(mName(h.memberId))} · ${esc(plainName(h.name))}</span><span class="m">-${h.cost} Punkte</span></div>`).join('')}</div>` : '<div class="empty">Noch nichts eingelöst.</div>'}`;
+    ${last.length ? `<div class="feed">${last.map(h => `<div>${ic('clock')}<span class="t">${fmtDate(h.date)} · ${part(h).map(x => esc(mName(x.memberId))).join(' + ')} · ${esc(plainName(h.name))}</span><span class="m">-${part(h).reduce((a,x) => a + Number(x.cost), 0)} Punkte</span></div>`).join('')}</div>` : '<div class="empty">Noch nichts eingelöst.</div>'}`;
 }
 
 function bars(rows) {
@@ -1191,7 +1194,7 @@ function viewStats() {
       <div class="panel"><h2>Punkte pro Monat</h2><p class="muted small sub-h">Ganze Familie</p>
         <div class="columns">${months.map(m => `<div class="col" title="${m.name}: ${m.v} Punkte"><em>${m.v || ''}</em><i style="height:${m.v/mMax*118}px"></i>${m.l}</div>`).join('')}</div></div>
       <div class="panel"><h2>Top-Aufgaben</h2><p class="muted small sub-h">Anzahl erledigt</p>${bars(count(doneTasks, h => h.name))}</div>
-      <div class="panel"><h2>Meiste Belohnungen</h2><p class="muted small sub-h">Anzahl eingelöst</p>${bars(count(state.rewardHistory, h => plainName(h.name)))}</div>
+      <div class="panel"><h2>Meiste Belohnungen</h2><p class="muted small sub-h">Anzahl eingelöst</p>${bars(count(state.rewardHistory.filter((h,i,all) => !h.group || all.findIndex(x => x.group === h.group) === i), h => plainName(h.name)))}</div>
     </div>`;
 }
 
@@ -1264,14 +1267,15 @@ function adminTaskHist() {
 function adminRewardHist() {
   const rows = newest(state.rewardHistory);
   if (compact()) return `<h1 class="sub-title" style="margin-bottom:12px">Belohnungshistorie</h1>
-    ${cards(rows.map(h => ({ act:'rewardHistForm', id:h.id, lead:avatar(member(h.memberId),'sm'), title:esc(plainName(h.name)), sub:`${fmtShort(h.date)} · ${esc(mName(h.memberId))}`, right:`<span class="chip bad">-${h.cost}</span>` })), 'Noch keine Einträge.')}`;
+    ${cards(rows.map(h => ({ act:'rewardHistForm', id:h.id, lead:avatar(member(h.memberId),'sm'), title:esc(plainName(h.name)) + (h.group ? ' (zusammen)' : ''), sub:`${fmtShort(h.date)} · ${esc(mName(h.memberId))}`, right:`<span class="chip bad">-${h.cost}</span>` })), 'Noch keine Einträge.')}`;
   return `<div class="panel"><div class="bar-head"><h2>Belohnungshistorie</h2></div>
   <div class="scroll"><table><thead><tr>${selTh()}<th>Datum</th><th>Person</th><th>Belohnung</th><th class="num">Kosten</th></tr></thead><tbody>
-  ${rows.map(h => `<tr ${rowAttrs('rewardHistForm', h.id)}>${selTd(h.id)}<td>${fmtShort(h.date)}</td><td>${who(h.memberId)}</td><td>${esc(plainName(h.name))}</td><td class="num">-${h.cost}</td></tr>`).join('')}
+  ${rows.map(h => `<tr ${rowAttrs('rewardHistForm', h.id)}>${selTd(h.id)}<td>${fmtShort(h.date)}</td><td>${who(h.memberId)}</td><td>${esc(plainName(h.name))}${h.group ? ' (zusammen)' : ''}</td><td class="num">-${h.cost}</td></tr>`).join('')}
   </tbody></table></div><p class="muted small">Zeile antippen zum Ändern oder Löschen.</p></div>`;
 }
 /* Neue Einträge oben ergänzen, in Alltagssprache und bei jedem Release */
 const CHANGELOG = [
+  ['1.10', 'Zusammenlegen', ['Belohnungen gemeinsam einlösen und Punkte zusammenlegen','Die App teilt die Kosten gerecht auf','Als Addon abschaltbar']],
   ['1.9', 'Spaß', ['Konfetti, Sterne und wechselnde Sprüche bei jeder erledigten Aufgabe','Sieben kurze Melodien und große Feiern für besondere Momente','Effekte und Sounds je Gerät abschaltbar']],
   ['1.8', 'Zuverlässigkeit', ['Updates kommen zuverlässiger an, auch auf dem iPad','Knopf „Nach Update suchen“ in den Einstellungen','Verwaltung für iPad hoch- und querkant neu angeordnet']],
   ['1.7', 'Planen', ['Zeitstrahl mit Uhrzeiten und „Jetzt“-Linie','Vorschau auf kommende Tage per Pfeil, Datum oder Wischen','Mehrere Wochentage je Aufgabe','Bonusaufgaben beliebig oft pro Tag','Statistik liegt jetzt unten im Dashboard „Aufgaben“']],
@@ -1328,6 +1332,7 @@ function adminSettings() {
     ${flag_('pflicht', featureOn('Pflicht'), 'Pflichtaufgaben', 'Feste Aufgaben für bestimmte Personen')}
     ${flag_('bonus', featureOn('Bonus'), 'Bonusaufgaben', 'Freiwillige Aufgaben für alle')}
     ${featureOn('Bonus') ? flag_('share', state.share.active, 'Addon Team-Bonus', 'Bonusaufgaben zusammen erledigen, jeder bekommt einen Anteil der Punkte') : ''}
+    ${flag_('pool', state.pool.active, 'Addon Punkte zusammenlegen', 'Mehrere lösen eine Belohnung gemeinsam ein')}
     ${flag_('grades', state.grades.active, 'Addon Schulnoten', 'Gute Noten mit Punkten belohnen')}
     ${flag_('goal', state.goal.active, 'Addon Familienziel', 'Gemeinsames Wochenziel auf dem Belohnungsblatt')}
     ${featureOn('Pflicht') ? flag_('streak', state.streak.active, 'Addon Serien-Bonus', 'Extrapunkte für mehrere Tage in Folge') : ''}
@@ -1621,7 +1626,7 @@ function pointHistory(id) {
   const m = member(id);
   const plus = state.taskHistory.filter(h => h.memberId === id && h.status === 'Erledigt' && Number(h.points));
   const minus = state.rewardHistory.filter(h => h.memberId === id);
-  const rows = [...plus.map(h => ({ date:h.date, name:histName(h), v:Number(h.points) })), ...minus.map(h => ({ date:h.date, name:plainName(h.name), v:-Number(h.cost) }))]
+  const rows = [...plus.map(h => ({ date:h.date, name:histName(h), v:Number(h.points) })), ...minus.map(h => ({ date:h.date, name:plainName(h.name) + (h.group ? ' (zusammen)' : ''), v:-Number(h.cost) }))]
     .reverse().sort((a,b) => b.date.localeCompare(a.date));
   const sum = l => l.reduce((a,r) => a + r.v, 0), shown = rows.slice(0,100);
   modal(`<div class="ph-head">${avatar(m,'sm')}<h2>${esc(m.name)}</h2></div>${closeX}
@@ -1661,18 +1666,36 @@ function whoDidIt(inst) {
     ${activeMembers().map(m => `<button class="pick" data-act="bonusBy" data-id="${m.id}">${avatar(m,'sm')}<span class="t"><b>${esc(m.name)}</b></span>${pointChip(inst.task.points)}</button>`).join('')}`);
   modal.inst = inst;
 }
+/* Kosten gerecht verteilen: gleich viel für alle, wer zu wenig hat, gibt alles, den Rest tragen die anderen */
+function splitCost(cost, ids) {
+  const sorted = [...ids].sort((a,b) => balance(a) - balance(b)), shares = {};
+  let rest = cost;
+  sorted.forEach((id, i) => { const part = Math.min(balance(id), Math.ceil(rest / (sorted.length - i))); shares[id] = part; rest -= part; });
+  return { shares, missing:rest };
+}
 function redeem(r) {
-  const pre = ui.filter !== 'alle' && balance(ui.filter) >= r.cost ? ui.filter : null;
-  modal(`<h2>Wer löst ein?</h2>${closeX}<p class="muted" style="margin-top:-6px">${esc(plainName(r.name))}</p><form data-form="modal">
-    ${activeMembers().map(m => { const b = balance(m.id), ok = b >= r.cost; return `<label class="pick ${ok?'':'off'}">${avatar(m,'sm')}
-      <span class="t"><b>${esc(m.name)}</b><span class="muted small">${b} Punkte</span> ${ok?'':'<span class="chip">Zu wenig Punkte</span>'}</span>
-      <input type="radio" name="who" value="${m.id}" ${ok?'':'disabled'} ${m.id===pre?'checked':''}></label>`; }).join('')}
-    <button class="btn coral wide" style="margin-top:14px">Für ${r.cost} Punkte einlösen</button></form>`, fd => {
-      const id = fd.get('who');
-      if (!id) { toast('Bitte eine Person auswählen', '', true); return false; }
-      state.rewardHistory.push({ id:uid(), date:today(), memberId:id, name:r.name, cost:r.cost });
-      fx.reward(`${plainName(r.name)} für ${mName(id)}`);
+  const pool = state.pool.active && activeMembers().length > 1;
+  const can = m => pool ? balance(m.id) > 0 : balance(m.id) >= r.cost;
+  const pre = ui.filter !== 'alle' && member(ui.filter) && can(member(ui.filter)) ? ui.filter : null;
+  modal(`<h2>Wer löst ein?</h2>${closeX}<p class="muted" style="margin-top:-6px">${esc(plainName(r.name))}: ${r.cost} Punkte${pool ? '. Mehrere auswählen, um Punkte zusammenzulegen.' : ''}</p><form data-form="modal">
+    ${activeMembers().map(m => { const b = balance(m.id), ok = can(m); return `<label class="pick ${ok?'':'off'}">${avatar(m,'sm')}
+      <span class="t"><b>${esc(m.name)}</b><span class="muted small">${b} Punkte</span> ${ok?'':'<span class="chip">Zu wenig Punkte</span>'} <span class="chip p2 hidden" data-share="${esc(m.id)}"></span></span>
+      <input type="${pool ? 'checkbox' : 'radio'}" name="who" value="${esc(m.id)}" ${ok?'':'disabled'} ${m.id===pre?'checked':''}></label>`; }).join('')}
+    <button class="btn coral wide" id="redeemGo" style="margin-top:14px"></button></form>`, fd => {
+      const ids = fd.getAll('who'), { shares, missing } = splitCost(r.cost, ids);
+      if (!ids.length || missing > 0) return false;
+      const payers = ids.filter(id => shares[id] > 0), group = payers.length > 1 ? uid() : undefined;
+      for (const id of payers) state.rewardHistory.push({ id:uid(), date:today(), memberId:id, name:r.name, cost:shares[id], ...(group ? { group } : {}) });
+      fx.reward(`${plainName(r.name)} für ${payers.map(mName).join(' und ')}`);
     });
+  const f = $('#modal form'), go = $('#redeemGo');
+  const sync = () => {
+    const ids = [...f.querySelectorAll('[name=who]:checked')].map(i => i.value), { shares, missing } = splitCost(r.cost, ids);
+    f.querySelectorAll('[data-share]').forEach(c => { const id = c.dataset.share, on = ids.length > 1 && ids.includes(id); c.classList.toggle('hidden', !on); c.textContent = `-${shares[id] ?? 0}`; });
+    go.disabled = !ids.length || missing > 0;
+    go.textContent = !ids.length ? 'Bitte auswählen' : missing > 0 ? `Noch ${missing} Punkte fehlen` : ids.length > 1 ? `Zusammen für ${r.cost} Punkte einlösen` : `Für ${r.cost} Punkte einlösen`;
+  };
+  f.addEventListener('change', sync); sync();
 }
 
 /* --------- App-Installation --------- */
@@ -2237,6 +2260,7 @@ document.addEventListener('change', async e => {
     const on = e.target.checked;
     if (feature === 'pflicht' || feature === 'bonus') state.features = { ...state.features, [feature]:on };
     if (feature === 'share') state.share = { ...state.share, active:on };
+    if (feature === 'pool') state.pool = { active:on };
     if (feature === 'grades') state.grades = { ...state.grades, active:on };
     if (feature === 'goal') state.goal = { ...state.goal, active:on };
     if (feature === 'streak') state.streak = { ...state.streak, active:on, since:today() };
