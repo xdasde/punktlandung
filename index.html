@@ -242,6 +242,25 @@
   .pickers input:checked + i { border-color: var(--primary); background: var(--primary-soft); }
   .pickers.solid input:checked + i { background: var(--primary); color: #fff; }
   .pickers input:focus-visible + i { outline: 3px solid var(--primary); outline-offset: 2px; }
+  .tl-time { font-size: 13.5px; color: var(--gray); font-weight: 600; font-variant-numeric: tabular-nums; }
+  .timeline { display: grid; grid-template-columns: 54px 1fr; gap: 8px 10px; align-items: center; margin-bottom: 22px; }
+  .timeline .hour { text-align: right; font-weight: 650; font-variant-numeric: tabular-nums; font-size: 15px; }
+  .timeline .now { grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; color: #A83A2C; font-weight: 650; font-size: 14px; }
+  .timeline .now::after { content: ""; flex: 1; height: 2px; background: var(--coral); border-radius: 1px; }
+  .daybar { display: flex; align-items: center; gap: 6px; background: #fff; border-radius: 14px; padding: 5px 6px; box-shadow: var(--shadow); }
+  .daybar button { width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; color: var(--primary); flex: none; }
+  .daybar button:disabled { color: #C9CDD2; cursor: default; }
+  .daybar .prev svg { transform: rotate(180deg); }
+  .daybar .mid { position: relative; text-align: center; min-width: 118px; flex: 1; }
+  .daybar .mid span { display: block; font-size: 13.5px; color: var(--gray); }
+  .daybar .mid b { font-size: 18px; font-weight: 650; font-variant-numeric: tabular-nums; }
+  .daybar .mid input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+  .daybar + .stat { flex: none; }
+  .day-note { background: #FCEBB5; border-radius: 12px; padding: 9px 13px; margin-bottom: 14px; font-size: 15.5px; display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+  .day-note button { font-weight: 650; color: var(--primary); min-height: 36px; }
+  .stats-link { display: inline-flex; align-items: center; gap: 7px; color: var(--primary); font-weight: 620; min-height: 48px; margin-top: 18px; padding: 8px 2px; }
+  .tick.plus { border-color: var(--primary); color: var(--primary); }
+  .tick.plus svg { display: block; }
   .pickers.tall { max-height: 196px; overflow-y: auto; padding: 2px; }
   .preset-cat h3 { font-size: 16px; margin: 14px 0 8px; font-weight: 650; }
   .presets { display: grid; grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); gap: 8px; }
@@ -308,6 +327,9 @@
     .top { margin-bottom: 14px; gap: 10px; }
     .stats { width: 100%; }
     .stat { flex: 1; padding: 8px 12px; min-width: 0; }
+    .daybar { flex: 1; min-width: 0; }
+    .daybar .mid { min-width: 0; }
+    .daybar + .stat { flex: 0 0 auto; }
     .stat span { font-size: 13px; white-space: nowrap; }
     .stat b { font-size: 18px; }
     .banner { min-height: 0; padding: 10px 12px; gap: 10px; }
@@ -353,10 +375,10 @@
 <div id="modal"></div>
 <div id="toast" aria-live="polite"></div>
 
-<script src="icons.js?v=713c9770"></script>
+<script src="icons.js?v=01b822e1"></script>
 <script>
 'use strict';
-const APP_VERSION = '713c9770'; // setzt tools/embed-assets.py
+const APP_VERSION = '01b822e1'; // setzt tools/embed-assets.py
 
 /* ==========================================================================
    Speicher-Schnittstelle
@@ -615,6 +637,7 @@ const SVG = {
   image:'<rect x="4" y="5" width="16" height="14" rx="2"/><circle cx="9" cy="10" r="1.500"/><path d="M4 17l5-4 3 2.500 3-3 5 4.500"/>',
   grad:'<path d="M2 9l10-5 10 5-10 5z"/><path d="M6 11.500V16c3 2.500 9 2.500 12 0v-4.500M22 9v6"/>',
   finger:'<path d="M7.500 4.500A9 9 0 0 1 20.500 12v1M4.500 8A9 9 0 0 0 3.500 12v2M8 19.500c.7-1.700 1-3.500 1-5.500v-2a3 3 0 0 1 6 0v2.500M12 12v2.500c0 2.300-.5 4.500-1.500 6.500M15 18c-.1 1-.3 2-.6 3M18.500 15.500c0 1-.1 2-.3 3"/>',
+  back:'<path d="M15 5l-7 7 7 7"/>',
   flame:'<path d="M12 3c1 3.500 5.500 5.500 5.500 10.500a5.500 5.500 0 01-11 0c0-2 1-3.500 2-4.500.3 1.500 1 2.500 2 3 0-3.500 0-6 1.500-9z"/>',
   alert:'<circle cx="12" cy="12" r="9"/><path d="M12 7.500V13M12 16.500v.01"/>',
 };
@@ -728,9 +751,11 @@ function demoState() {
 }
 
 /* --------- Fachlogik --------- */
+const taskDays = t => (t.weekdays ?? [t.weekday]).map(Number);
+const dayLabel = t => { const d = taskDays(t); return [1,2,3,4,5,6,0].filter(x => d.includes(x)).map(x => WEEKDAYS[x].slice(0,2)).join(', '); };
 function isDue(task, day) {
   if (!task.active || day < task.start) return false;
-  if (task.rec === 'wochentag') return parseKey(day).getDay() === Number(task.weekday);
+  if (task.rec === 'wochentag') return taskDays(task).includes(parseKey(day).getDay());
   if (task.rec === 'intervall') return diffDays(day, task.start) % Math.max(1, Number(task.interval)) === 0;
   return true;
 }
@@ -744,6 +769,12 @@ function instances(s, day) {
   const active = s.members.filter(m => m.active);
   for (const task of s.tasks) {
     if (!isDue(task, day) || !featureOn(task.type, s)) continue;
+    // Beliebig oft: immer genau eine offene Zeile, der nächste freie Platz
+    if (task.unlimited && task.type === 'Bonus') {
+      const used = s.taskHistory.filter(h => h.date === day && h.taskId === task.id).reduce((a,h) => Math.max(a, h.slot), 0);
+      out.push({ task, memberId:null, slot:used + 1 });
+      continue;
+    }
     const people = task.type === 'Bonus' ? [null]
       : task.person === 'alle' ? active.map(m => m.id)
       : taskPeople(task).filter(id => active.some(m => m.id === id));
@@ -906,7 +937,7 @@ function migrate(s) {
 }
 const stored = Store.load();
 let state = stored ? migrate(stored) : demoState();
-const ui = { view:'tasks', filter:'alle', admin:'tasks', adminMenu:true, unlocked:false, day:today() };
+const ui = { view:'tasks', filter:'alle', offset:0, admin:'tasks', adminMenu:true, unlocked:false, day:today() };
 /* Auf dem Handy zeigt die Verwaltung ein Menü und Karten statt Reitern und Tabellen */
 const phoneQuery = matchMedia('(max-width: 700px)');
 const phone = () => phoneQuery.matches;
@@ -954,47 +985,67 @@ const pointChip = p => `<span class="chip ${p <= 2 ? 'p1' : p < 10 ? 'p2' : 'p3'
 
 /* --------- Darstellung --------- */
 function render() {
-  const views = { tasks:viewTasks, rewards:viewRewards, stats:viewStats, admin:viewAdmin };
+  const views = { tasks:viewTasks, timeline:viewTimeline, rewards:viewRewards, stats:viewStats, admin:viewAdmin };
   $('#app').innerHTML = views[ui.view]();
-  const nav = [['tasks','tasks','Aufgaben'],['rewards','gift','Belohnungen'],['stats','chart','Statistik'],['admin','gear','Verwaltung']];
+  const nav = [['tasks','tasks','Aufgaben'],['rewards','gift','Belohnungen'],['timeline','clock','Zeitstrahl'],['admin','gear','Verwaltung']];
   $('#nav').innerHTML = nav.map(([v,e,l]) =>
     `<button data-act="nav" data-v="${v}" class="${ui.view===v?'on':''}" ${ui.view===v?'aria-current="page"':''}>${ic(e)}${l}</button>`).join('');
 }
 
-function viewTasks() {
-  const day = today();
-  if (!activeMembers().length) return `<h1>${esc(state.familyName)}</h1><div class="empty" style="margin-top:16px">Noch keine Familienmitglieder. Lege sie unter Verwaltung → Familie an.</div>`;
+const shownDay = () => addDays(today(), ui.offset);
+function dayTitle(day) {
+  if (ui.offset === 0) return 'Heute';
+  if (ui.offset === 1) return 'Morgen';
+  return WEEKDAYS[parseKey(day).getDay()];
+}
+const dayBar = day => `<div class="daybar">
+  <button class="prev" data-act="dayStep" data-d="-1" aria-label="Vorheriger Tag" ${ui.offset ? '' : 'disabled'}>${ic('chev')}</button>
+  <div class="mid"><span>${dayTitle(day)}</span><b>${fmtDate(day)}</b><input type="date" id="dayPick" value="${day}" min="${today()}" aria-label="Tag wählen"></div>
+  <button data-act="dayStep" data-d="1" aria-label="Nächster Tag">${ic('chev')}</button></div>`;
+const dayNote = () => ui.offset ? `<div class="day-note"><span>Vorschau: Abhaken geht erst an dem Tag.</span><button data-act="dayToday">Zu heute</button></div>` : '';
+function dayData(day) {
   const all = instances(state, day).map(i => ({ ...i, h: findEntry(day, i) }));
-  const f = ui.filter;
-  const must = all.filter(i => i.task.type === 'Pflicht' && (f === 'alle' || i.memberId === f))
-    .sort((a,b) => (!!a.h - !!b.h) || state.members.findIndex(m=>m.id===a.memberId) - state.members.findIndex(m=>m.id===b.memberId));
-  const bonus = all.filter(i => i.task.type === 'Bonus').sort((a,b) => !!a.h - !!b.h);
-  const open = must.filter(i => !i.h).length + bonus.filter(i => !i.h).length;
-  const openOf = id => all.filter(i => !i.h && i.memberId === id).length;
-
-  const pf = featureOn('Pflicht'), bo = featureOn('Bonus');
-  const tiles = activeMembers().map(m =>
+  const counts = i => !i.h && !i.task.unlimited;
+  return { all, open:all.filter(counts), openOf:id => all.filter(i => counts(i) && i.memberId === id).length };
+}
+function personTiles(d) {
+  const f = ui.filter, pf = featureOn('Pflicht');
+  return `<div class="tiles">${activeMembers().map(m =>
     `<button class="tile ${f===m.id?'on':''}" style="--c:${esc(m.color)}" data-act="filter" data-id="${m.id}" aria-pressed="${f===m.id}">
-       ${avatar(m)}<span class="name">${esc(m.name)}</span>${pf ? `<span class="chip tint">${openOf(m.id)} offen</span>` : ''}</button>`).join('')
-    + `<button class="tile ${f==='alle'?'on':''}" data-act="filter" data-id="alle" aria-pressed="${f==='alle'}">
-       <img class="ava" src="${ASSETS['av-family']}" alt=""><span class="name">Alle</span><span class="chip">${all.filter(i=>!i.h).length} offen</span></button>`;
-
-  const slot = i => i.task.times > 1 ? ` · ${i.slot}/${i.task.times}` : '';
-  const key = i => `data-task="${esc(i.task.id)}" data-slot="${i.slot}" data-member="${esc(i.memberId ?? '')}"`;
-  const tick = `<span class="tick">${ic('check')}</span>`;
-  const pflichtRows = must.map(i => { const m = member(i.memberId); return `
-    <button class="row ${i.h?'done':''}" style="--c:${esc(m?.color)}" data-act="toggle" aria-pressed="${!!i.h}" ${key(i)}>
+       ${avatar(m)}<span class="name">${esc(m.name)}</span>${pf ? `<span class="chip tint">${d.openOf(m.id)} offen</span>` : ''}</button>`).join('')}
+    <button class="tile ${f==='alle'?'on':''}" data-act="filter" data-id="alle" aria-pressed="${f==='alle'}">
+       <img class="ava" src="${ASSETS['av-family']}" alt=""><span class="name">Alle</span><span class="chip">${d.open.length} offen</span></button></div>`;
+}
+function taskRow(i, day, showTime = true) {
+  const key = `data-task="${esc(i.task.id)}" data-slot="${i.slot}" data-member="${esc(i.memberId ?? '')}"`;
+  const time = i.task.time && showTime ? `<span class="tl-time">${esc(i.task.time)}</span>` : '';
+  const slot = i.task.times > 1 && !i.task.unlimited ? `<span>${i.slot}/${i.task.times}</span>` : '';
+  if (i.task.type === 'Pflicht') {
+    const m = member(i.memberId);
+    return `<button class="row ${i.h?'done':''}" style="--c:${esc(m?.color)}" data-act="toggle" aria-pressed="${!!i.h}" ${key}>
       ${thumb(taskIconId(i.task))}
-      <span class="what"><b>${esc(i.task.name)}</b><span class="sub">${avatar(m,'xs')}${esc(m?.name)}${slot(i)}</span></span>
-      ${pointChip(i.task.points)}${tick}
-    </button>`; }).join('');
-  const bonusRows = bonus.map(i => `
-    <button class="row ${i.h?'done':''}" data-act="toggle" aria-pressed="${!!i.h}" ${key(i)}>
-      ${thumb(taskIconId(i.task))}
-      <span class="what"><b>${esc(i.task.name)}</b><span class="sub">${i.h ? groupOf(i.h).map(x => who(x.memberId)).join('') : '<span class="chip">Frei</span>'}${i.task.times > 1 ? `<span>${i.slot}/${i.task.times}</span>` : ''}</span></span>
-      ${pointChip(i.task.points)}${tick}
-    </button>`).join('');
-
+      <span class="what"><b>${esc(i.task.name)}</b><span class="sub">${avatar(m,'xs')}${esc(m?.name)}${slot}${time}</span></span>
+      ${pointChip(i.task.points)}<span class="tick">${ic('check')}</span></button>`;
+  }
+  if (i.task.unlimited) {
+    const done = state.taskHistory.filter(h => h.date === day && h.taskId === i.task.id);
+    const times = new Set(done.map(h => h.slot)).size;
+    return `<button class="row" data-act="toggle" ${key}>${thumb(taskIconId(i.task))}
+      <span class="what"><b>${esc(i.task.name)}</b><span class="sub"><span class="chip">${times ? `${times}× heute` : 'Beliebig oft'}</span>${time}</span></span>
+      ${pointChip(i.task.points)}<span class="tick plus">${ic('plus')}</span></button>`;
+  }
+  return `<button class="row ${i.h?'done':''}" data-act="toggle" aria-pressed="${!!i.h}" ${key}>${thumb(taskIconId(i.task))}
+    <span class="what"><b>${esc(i.task.name)}</b><span class="sub">${i.h ? groupOf(i.h).map(x => who(x.memberId)).join('') : '<span class="chip">Frei</span>'}${slot}${time}</span></span>
+    ${pointChip(i.task.points)}<span class="tick">${ic('check')}</span></button>`;
+}
+function viewTasks() {
+  const day = shownDay();
+  if (!activeMembers().length) return `<h1>${esc(state.familyName)}</h1><div class="empty" style="margin-top:16px">Noch keine Familienmitglieder. Lege sie unter Verwaltung → Familie an.</div>`;
+  const d = dayData(day), f = ui.filter, pf = featureOn('Pflicht'), bo = featureOn('Bonus');
+  const must = d.all.filter(i => i.task.type === 'Pflicht' && (f === 'alle' || i.memberId === f))
+    .sort((a,b) => (!!a.h - !!b.h) || state.members.findIndex(m=>m.id===a.memberId) - state.members.findIndex(m=>m.id===b.memberId));
+  const bonus = d.all.filter(i => i.task.type === 'Bonus').sort((a,b) => !!a.h - !!b.h);
+  const open = must.filter(i => !i.h).length + bonus.filter(i => !i.h && !i.task.unlimited).length;
   return `
     ${installBanner()}
     ${state.demo ? `<button class="banner" data-act="wizStart">${ic('users')}
@@ -1002,15 +1053,34 @@ function viewTasks() {
     <div class="top">
       <h1>${esc(state.familyName)}</h1>
       <div class="stats">
-        <div class="stat">${ic('cal')}<div><span>Heute</span><b>${fmtDate(day)}</b></div></div>
-        <div class="stat">${ic('tasks')}<div><span>Offene Aufgaben</span><b>${open}</b></div></div>
+        ${dayBar(day)}
+        <div class="stat">${ic('tasks')}<div><span>Offen</span><b>${open}</b></div></div>
       </div>
     </div>
-    <div class="tiles">${tiles}</div>
+    ${dayNote()}
+    ${personTiles(d)}
     ${pf || bo ? `<div class="cols" ${pf && bo ? '' : 'style="grid-template-columns:1fr"'}>
-      ${pf ? `<section><h2>Pflichtaufgaben</h2><div class="list">${pflichtRows || '<div class="empty">Heute keine Pflichtaufgaben.</div>'}</div></section>` : ''}
-      ${bo ? `<section><h2>Bonusaufgaben</h2><div class="list">${bonusRows || '<div class="empty">Heute keine Bonusaufgaben.</div>'}</div></section>` : ''}
-    </div>` : '<div class="empty">Pflicht- und Bonusaufgaben sind in den Einstellungen ausgeschaltet.</div>'}`;
+      ${pf ? `<section><h2>Pflichtaufgaben</h2><div class="list">${must.map(i => taskRow(i, day)).join('') || '<div class="empty">Keine Pflichtaufgaben an diesem Tag.</div>'}</div></section>` : ''}
+      ${bo ? `<section><h2>Bonusaufgaben</h2><div class="list">${bonus.map(i => taskRow(i, day)).join('') || '<div class="empty">Keine Bonusaufgaben an diesem Tag.</div>'}</div></section>` : ''}
+    </div>` : '<div class="empty">Pflicht- und Bonusaufgaben sind in den Einstellungen ausgeschaltet.</div>'}
+    <button class="stats-link" data-act="nav" data-v="stats">${ic('chart')}Statistik</button>`;
+}
+function viewTimeline() {
+  const day = shownDay(), d = dayData(day), f = ui.filter;
+  const items = d.all.filter(i => f === 'alle' || i.memberId === f || i.task.type === 'Bonus');
+  const timed = items.filter(i => i.task.time).sort((a,b) => a.task.time.localeCompare(b.task.time));
+  const rest = items.filter(i => !i.task.time);
+  const now = new Date(), nowText = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+  let line = '', shownNow = ui.offset !== 0;
+  for (const i of timed) {
+    if (!shownNow && i.task.time > nowText) { line += `<div class="now">Jetzt ${nowText}</div>`; shownNow = true; }
+    line += `<span class="hour">${esc(i.task.time)}</span>${taskRow(i, day, false)}`;
+  }
+  if (!shownNow && timed.length) line += `<div class="now">Jetzt ${nowText}</div>`;
+  return `<div class="top"><h1>Zeitstrahl</h1><div class="stats">${dayBar(day)}</div></div>
+    ${dayNote()}${personTiles(d)}
+    ${timed.length ? `<div class="timeline">${line}</div>` : '<div class="empty" style="margin-bottom:22px">Noch keine Uhrzeiten. Trage sie in der Verwaltung bei den Aufgaben ein.</div>'}
+    ${rest.length ? `<h2>Ohne Uhrzeit</h2><div class="list">${rest.map(i => taskRow(i, day)).join('')}</div>` : ''}`;
 }
 
 function goalCard() {
@@ -1075,6 +1145,7 @@ function viewStats() {
   const count = (arr, f) => { const c = {}; arr.forEach(x => c[f(x)] = (c[f(x)]||0)+1);
     return Object.entries(c).sort((a,b) => b[1]-a[1]).slice(0,5).map(([k,v]) => ({ l:`<span style="overflow:hidden;text-overflow:ellipsis">${esc(k)}</span>`, plain:k, v })); };
   return `
+    <button class="back" data-act="nav" data-v="tasks" style="margin-top:0">${ic('back')}Aufgaben</button>
     <div class="top"><h1>Statistik</h1></div>
     <div class="grid2">
       ${featureOn('Pflicht') ? `<div class="panel"><h2>Gesamtquote</h2><p class="muted small sub-h">Pflichtaufgaben, letzte 30 Tage</p>
@@ -1124,14 +1195,14 @@ function adminTasks() {
   const empty = 'Noch keine Aufgaben. Lege mit „Neue Aufgabe“ die erste an.';
   if (phone()) return `<div class="bar-head"><h1>Aufgaben</h1><button class="btn" data-act="taskForm">${ic('plus')}Neu</button></div>
     ${cards(state.tasks.map(t => ({ act:'taskForm', id:t.id, lead:thumb(taskIconId(t)), title:esc(t.name),
-      sub:`${esc(t.type)} · ${personLabel(t)} · ${t.rec==='wochentag' ? WEEKDAYS[t.weekday] : t.rec==='intervall' ? `Alle ${t.interval} Tage` : 'Täglich'}${t.times>1?` · ${t.times}×`:''}${t.active?'':' · inaktiv'}`,
+      sub:`${esc(t.type)} · ${personLabel(t)} · ${t.rec==='wochentag' ? dayLabel(t) : t.rec==='intervall' ? `Alle ${t.interval} Tage` : 'Täglich'}${t.unlimited ? ' · beliebig oft' : t.times>1 ? ` · ${t.times}×` : ''}${t.time ? ` · ${t.time}` : ''}${t.active?'':' · inaktiv'}`,
       right:pointChip(t.points) })), empty)}`;
   if (!state.tasks.length) return `<div class="panel"><div class="bar-head"><h2>Aufgaben</h2><button class="btn" data-act="taskForm">${ic('plus')}Neue Aufgabe</button></div><div class="empty">${empty}</div></div>`;
   return `<div class="panel"><div class="bar-head"><h2>Aufgaben</h2><button class="btn" data-act="taskForm">${ic('plus')}Neue Aufgabe</button></div>
-  <div class="scroll"><table><thead><tr>${selTh()}<th>Aktiv</th><th></th><th>Aufgabe</th><th>Typ</th><th>Person</th><th class="num">Punkte</th><th>Wiederholung</th><th class="num">Intervall</th><th>Wochentag</th><th class="num">Mal pro Tag</th></tr></thead><tbody>
+  <div class="scroll"><table><thead><tr>${selTh()}<th>Aktiv</th><th></th><th>Aufgabe</th><th>Typ</th><th>Person</th><th class="num">Punkte</th><th>Wiederholung</th><th class="num">Intervall</th><th>Wochentage</th><th class="num">Mal pro Tag</th></tr></thead><tbody>
   ${state.tasks.map(t => `<tr ${rowAttrs('taskForm', t.id, t.active?'':'inactive')}>
     ${selTd(t.id)}<td>${activeChip(t.active)}</td><td>${thumb(taskIconId(t))}</td><td>${esc(t.name)}</td><td>${esc(t.type)}</td><td>${personLabel(t)}</td><td class="num">${t.points}</td>
-    <td>${recLabel(t)}</td><td class="num">${t.rec==='intervall'?t.interval:''}</td><td>${t.rec==='wochentag'?WEEKDAYS[t.weekday]:''}</td><td class="num">${t.times}</td></tr>`).join('')}
+    <td>${recLabel(t)}</td><td class="num">${t.rec==='intervall'?t.interval:''}</td><td>${t.rec==='wochentag'?dayLabel(t):''}</td><td class="num">${t.unlimited ? '∞' : t.times}</td></tr>`).join('')}
   </tbody></table></div><p class="muted small">Zeile antippen zum Bearbeiten.</p></div>`;
 }
 function adminRewards() {
@@ -1375,25 +1446,31 @@ function taskForm(id, preset) {
       </div></div>
     <div class="two">
       <div class="field"><span>Punkte</span>${stepper('points', t.points, 0)}</div>
-      <div class="field"><span>Mal pro Tag</span>${stepper('times', t.times, 1, 10)}</div>
+      <div class="field" id="f-times"><span>Mal pro Tag</span>${stepper('times', t.times, 1, 10)}</div>
     </div>
+    <div id="f-unlimited">${toggleField('unlimited', t.unlimited, 'Beliebig oft pro Tag')}</div>
+    <label class="field"><span>Uhrzeit (optional, für den Zeitstrahl)</span><input name="time" type="time" value="${esc(t.time ?? '')}"></label>
     <div class="field"><span>Bild</span>${iconPicker(TASK_ICONS.map(([id]) => id), t.icon, true)}</div>
     <label class="field"><span>Wiederholung</span><select name="rec">${options([['taeglich','Täglich'],['wochentag','Wochentag'],['intervall','Alle X Tage']],t.rec)}</select></label>
-    <div class="field" id="f-weekday"><span>Wochentag</span><div class="pickers text solid">
-      ${days.map(d => `<label><input type="radio" name="weekday" value="${d}" ${Number(t.weekday)===d?'checked':''}><i>${WEEKDAYS[d].slice(0,2)}</i></label>`).join('')}</div></div>
+    <div class="field" id="f-weekday"><span>Wochentage</span><div class="pickers text solid">
+      ${days.map(d => `<label><input type="checkbox" name="weekdays" value="${d}" ${taskDays(t).includes(d)?'checked':''}><i>${WEEKDAYS[d].slice(0,2)}</i></label>`).join('')}</div></div>
     <div class="field" id="f-interval"><span>Alle wie viele Tage?</span>${stepper('interval', t.interval, 1)}</div>
     ${formButtons(!!id)}</form>`, fd => {
       const bonus = fd.get('type') === 'Bonus', people = fd.getAll('people');
       if (!bonus && !fd.has('everyone') && !people.length) { toast('Bitte mindestens eine Person auswählen', '', true); return false; }
+      const weekdays = fd.getAll('weekdays').map(Number);
+      if (fd.get('rec') === 'wochentag' && !weekdays.length) { toast('Bitte mindestens einen Wochentag auswählen', '', true); return false; }
       const data = { active:fd.has('active'), name:fd.get('name').trim(), type:fd.get('type'),
         person: bonus ? 'offen' : fd.has('everyone') ? 'alle' : people, points:number(fd.get('points')), icon:fd.get('icon') || undefined,
-        times:Math.max(1,number(fd.get('times'))), rec:fd.get('rec'), weekday:number(fd.get('weekday')), interval:Math.max(1,number(fd.get('interval'))) };
+        times:Math.max(1,number(fd.get('times'))), rec:fd.get('rec'), weekdays, weekday:weekdays[0] ?? 1, time:fd.get('time') || undefined, unlimited:bonus && fd.has('unlimited') || undefined, interval:Math.max(1,number(fd.get('interval'))) };
       if (id) Object.assign(t, data); else state.tasks.push({ id:uid(), start:today(), ...data });
     });
   modal.del = id ? () => { state.tasks = state.tasks.filter(x => x.id !== id); } : null;
   const sync = () => {
     const f = $('#modal form');
     $('#f-person').classList.toggle('hidden', f.type.value === 'Bonus');
+    $('#f-unlimited').classList.toggle('hidden', f.type.value !== 'Bonus');
+    $('#f-times').classList.toggle('hidden', f.type.value === 'Bonus' && f.unlimited.checked);
     document.querySelectorAll('#f-person .one').forEach(l => l.classList.toggle('hidden', f.everyone.checked));
     $('#f-weekday').classList.toggle('hidden', f.rec.value !== 'wochentag');
     $('#f-interval').classList.toggle('hidden', f.rec.value !== 'intervall');
@@ -1507,12 +1584,15 @@ function bonusDone(inst, ids) {
 function shareDialog(inst) {
   const pts = Number(inst.task.points);
   const label = n => n > 1 ? `Zusammen erledigt: je +${sharedPoints(pts)} Punkte` : `Erledigt: +${pts} Punkte`;
+  const team = state.share.active && activeMembers().length > 1;
+  const last = state.taskHistory.filter(h => h.date === today() && h.taskId === inst.task.id).sort((a,b) => b.slot - a.slot)[0];
   modal(`<h2>Wer hat „${esc(inst.task.name)}“ erledigt?</h2>${closeX}
-    <p class="muted small" style="margin-top:-6px">Mehrere auswählen, wenn ihr es zusammen gemacht habt. Dann gibt es für jeden ${state.share.percent} % der Punkte.</p>
+    ${team ? `<p class="muted small" style="margin-top:-6px">Mehrere auswählen, wenn ihr es zusammen gemacht habt. Dann gibt es für jeden ${state.share.percent} % der Punkte.</p>` : ''}
     <form data-form="modal">
     ${activeMembers().map(m => `<label class="pick">${avatar(m,'sm')}<span class="t"><b>${esc(m.name)}</b></span>
-      <input type="checkbox" name="who" value="${esc(m.id)}" ${m.id === ui.filter ? 'checked' : ''}></label>`).join('')}
-    <button class="btn wide" id="shareGo" style="margin-top:14px"></button></form>`, fd => {
+      <input type="${team ? 'checkbox' : 'radio'}" name="who" value="${esc(m.id)}" ${m.id === ui.filter ? 'checked' : ''}></label>`).join('')}
+    <button class="btn wide" id="shareGo" style="margin-top:14px"></button>
+    ${inst.task.unlimited && last ? `<button type="button" class="btn ghost wide" data-act="undoLast" style="margin-top:8px">Letzten Eintrag zurücknehmen</button>` : ''}</form>`, fd => {
       const ids = fd.getAll('who');
       if (!ids.length) return false;
       closeModal(); bonusDone(inst, ids); return false;
@@ -1520,6 +1600,7 @@ function shareDialog(inst) {
   const f = $('#modal form'), go = $('#shareGo');
   const sync = () => { const n = f.querySelectorAll('[name=who]:checked').length; go.disabled = !n; go.textContent = n ? label(n) : 'Bitte auswählen'; };
   f.addEventListener('change', sync); sync();
+  modal.last = last; modal.lastTask = inst.task;
 }
 function whoDidIt(inst) {
   modal(`<h2>Wer hat „${esc(inst.task.name)}“ erledigt?</h2>${closeX}
@@ -1810,13 +1891,14 @@ function wizSubmit(form, fd) {
 
 /* --------- Ereignisse --------- */
 function toggle(btn) {
+  if (ui.offset) { toast('Abhaken geht erst an dem Tag', '', true); return; }
   const day = today();
   const task = state.tasks.find(t => t.id === btn.dataset.task);
   const inst = { task, slot:Number(btn.dataset.slot), memberId: btn.dataset.member || null };
   const h = findEntry(day, inst);
   if (h) { undoTask(h, task); return; }
   if (task.type === 'Pflicht') { state.taskHistory.push(entry(day, inst, inst.memberId, true)); save(); render(); toast('Aufgabe erledigt!', `+${task.points} Punkte`); return; }
-  if (state.share.active && activeMembers().length > 1) { shareDialog(inst); return; }
+  if (task.unlimited || (state.share.active && activeMembers().length > 1)) { shareDialog(inst); return; }
   if (ui.filter !== 'alle') { bonusDone(inst, [ui.filter]); return; }
   whoDidIt(inst);
 }
@@ -1892,6 +1974,9 @@ document.addEventListener('click', e => {
     close() { closeModal(); },
     del() { if (!confirm('Wirklich löschen?')) return; modal.del(); save(); closeModal(); render(); },
     redeem() { redeem(state.rewards.find(r => r.id === id)); },
+    undoLast() { undoTask(modal.last, modal.lastTask); },
+    dayStep() { ui.offset = Math.max(0, ui.offset + Number(el.dataset.d)); render(); },
+    dayToday() { ui.offset = 0; render(); },
     undoYes() { const h = modal.undo, all = groupOf(h); state.taskHistory = state.taskHistory.filter(x => !all.includes(x)); closeModal(); save(); render(); toast('Aufgabe wieder offen', `${all.length > 1 ? 'je ' : ''}-${h.points} Punkte`); },
     bonusBy() { const i = modal.inst; state.taskHistory.push(entry(today(), i, id, true)); save(); closeModal(); render(); toast(`Aufgabe erledigt, ${mName(id)}!`, `+${i.task.points} Punkte`); },
     step() { const i = el.parentNode.querySelector('input'); const next = number(i.value) + Number(el.dataset.d);
@@ -1942,6 +2027,7 @@ document.addEventListener('input', e => {
   $('#presetNone').classList.toggle('hidden', hits > 0);
 });
 document.addEventListener('change', async e => {
+  if (e.target.id === 'dayPick' && e.target.value) { ui.offset = Math.max(0, diffDays(e.target.value, today())); render(); return; }
   const feature = e.target.dataset?.feature;
   if (feature === 'bio') {
     if (e.target.checked) {
@@ -1982,6 +2068,20 @@ document.addEventListener('change', async e => {
   finally { e.target.value = ''; }
 });
 
+/* Wischen auf Aufgaben und Zeitstrahl: nach rechts zum nächsten Tag, nach links zurück */
+let swipe = null;
+document.addEventListener('touchstart', e => {
+  const t = e.touches[0], ok = e.touches.length === 1 && (ui.view === 'tasks' || ui.view === 'timeline') && !$('#modal').innerHTML && !e.target.closest('.tiles');
+  swipe = ok ? { x:t.clientX, y:t.clientY } : null;
+}, { passive:true });
+document.addEventListener('touchend', e => {
+  if (!swipe) return;
+  const t = e.changedTouches[0], dx = t.clientX - swipe.x, dy = t.clientY - swipe.y;
+  swipe = null;
+  if (Math.abs(dx) < 70 || Math.abs(dy) > 60) return;
+  const next = Math.max(0, ui.offset + (dx > 0 ? 1 : -1));
+  if (next !== ui.offset) { ui.offset = next; render(); }
+}, { passive:true });
 phoneQuery.addEventListener('change', () => { if (!$('#modal').innerHTML) render(); });
 
 // Tablet bleibt über Nacht an: Datumswechsel erkennen
