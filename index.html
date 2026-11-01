@@ -353,10 +353,10 @@
 <div id="modal"></div>
 <div id="toast" aria-live="polite"></div>
 
-<script src="icons.js?v=65a5b28d"></script>
+<script src="icons.js?v=59b809b7"></script>
 <script>
 'use strict';
-const APP_VERSION = '65a5b28d'; // setzt tools/embed-assets.py
+const APP_VERSION = '59b809b7'; // setzt tools/embed-assets.py
 
 /* ==========================================================================
    Speicher-Schnittstelle
@@ -614,6 +614,7 @@ const SVG = {
   chev:'<path d="M9 5l7 7-7 7"/>', cam:'<path d="M4 8h3l2-3h6l2 3h3a1 1 0 011 1v10a1 1 0 01-1 1H4a1 1 0 01-1-1V9a1 1 0 011-1z"/><circle cx="12" cy="13.500" r="3.500"/>',
   image:'<rect x="4" y="5" width="16" height="14" rx="2"/><circle cx="9" cy="10" r="1.500"/><path d="M4 17l5-4 3 2.500 3-3 5 4.500"/>',
   grad:'<path d="M2 9l10-5 10 5-10 5z"/><path d="M6 11.500V16c3 2.500 9 2.500 12 0v-4.500M22 9v6"/>',
+  finger:'<path d="M7.500 4.500A9 9 0 0 1 20.500 12v1M4.500 8A9 9 0 0 0 3.500 12v2M8 19.500c.7-1.700 1-3.500 1-5.500v-2a3 3 0 0 1 6 0v2.500M12 12v2.500c0 2.300-.5 4.500-1.500 6.500M15 18c-.1 1-.3 2-.6 3M18.500 15.500c0 1-.1 2-.3 3"/>',
   flame:'<path d="M12 3c1 3.500 5.500 5.500 5.500 10.500a5.500 5.500 0 01-11 0c0-2 1-3.500 2-4.500.3 1.500 1 2.500 2 3 0-3.500 0-6 1.500-9z"/>',
   alert:'<circle cx="12" cy="12" r="9"/><path d="M12 7.500V13M12 16.500v.01"/>',
 };
@@ -1035,7 +1036,8 @@ function viewAdmin() {
     <div class="top"><h1>Verwaltung</h1></div>
     <div class="panel" style="max-width:420px">
       <h2>Nur für Erwachsene</h2>
-      <p class="muted">Bitte PIN eingeben.${state.demo ? ' In den Beispieldaten ist sie <b>1234</b>.' : ''}</p>
+      ${bioOn() ? `<button class="btn wide" data-act="bioUnlock" style="margin-bottom:14px">${ic('finger')}Mit Fingerabdruck entsperren</button>` : ''}
+      <p class="muted">${bioOn() ? 'Oder ' : 'Bitte '}PIN eingeben.${state.demo ? ' In den Beispieldaten ist sie <b>1234</b>.' : ''}</p>
       <form data-form="unlock">
         <label class="field"><span>PIN</span><input class="pin" name="pin" type="password" inputmode="numeric" autocomplete="off"></label>
         <button class="btn wide">${ic('lock')}Entsperren</button>
@@ -1137,6 +1139,7 @@ function adminSettings() {
     </form></div>
   <div class="panel narrow"><h2>Funktionen und Addons</h2>
     <p class="muted small sub-h">Ausschalten blendet eine Funktion nur aus, alle Daten und Punkte bleiben erhalten.</p>
+    ${bioReady ? flag_('bio', bioOn(), 'Mit Fingerabdruck oder Gesicht entsperren', 'Gilt nur auf diesem Gerät. Jeder hier gespeicherte Finger oder jedes Gesicht entsperrt, die PIN bleibt als Ersatz.') : ''}
     ${flag_('pflicht', featureOn('Pflicht'), 'Pflichtaufgaben', 'Feste Aufgaben für bestimmte Personen')}
     ${flag_('bonus', featureOn('Bonus'), 'Bonusaufgaben', 'Freiwillige Aufgaben für alle')}
     ${featureOn('Bonus') ? flag_('share', state.share.active, 'Addon Team-Bonus', 'Bonusaufgaben zusammen erledigen, jeder bekommt einen Anteil der Punkte') : ''}
@@ -1505,6 +1508,37 @@ async function install() {
 addEventListener('beforeinstallprompt', e => { e.preventDefault(); installPrompt = e; });
 addEventListener('appinstalled', () => { installPrompt = null; render(); toast('App installiert'); });
 
+/* --------- Entsperren per Fingerabdruck oder Gesicht ---------
+   WebAuthn prüft Finger oder Gesicht im Gerät, die App erfährt nur das Ergebnis. Die Kennung liegt
+   bewusst außerhalb von state: Sie gilt nur für dieses Gerät und gehört nicht in einen Export.
+   Ohne Server ersetzt das wie die PIN keinen echten Schutz, sondern hält nur Kinder ab. */
+const BIO_KEY = 'punktlandung.bio';
+let bioReady = false;
+const bioOn = () => bioReady && !!flag.get(BIO_KEY);
+const randomBytes = n => crypto.getRandomValues(new Uint8Array(n));
+const toB64 = b => btoa(String.fromCharCode(...new Uint8Array(b)));
+const fromB64 = t => Uint8Array.from(atob(t), c => c.charCodeAt(0));
+async function bioEnable() {
+  const cred = await navigator.credentials.create({ publicKey: {
+    challenge: randomBytes(32), rp: { name:'Punktlandung' },
+    user: { id: randomBytes(16), name:'verwaltung', displayName:'Punktlandung Verwaltung' },
+    pubKeyCredParams: [{ type:'public-key', alg:-7 }, { type:'public-key', alg:-257 }],
+    authenticatorSelection: { authenticatorAttachment:'platform', userVerification:'required', residentKey:'discouraged' },
+    timeout: 60000,
+  } });
+  flag.set(BIO_KEY, toB64(cred.rawId));
+}
+function bioDisable() { try { localStorage.removeItem(BIO_KEY); } catch {} }
+async function bioUnlock() {
+  try {
+    await navigator.credentials.get({ publicKey: {
+      challenge: randomBytes(32), userVerification:'required', timeout: 60000,
+      allowCredentials: [{ type:'public-key', id: fromB64(flag.get(BIO_KEY)) }],
+    } });
+    ui.unlocked = true; render();
+  } catch { toast('Nicht erkannt, bitte PIN eingeben', '', true); }
+}
+
 /* --------- Automatische Updates ---------
    Offene Apps prüfen stündlich und beim Zurückholen in den Vordergrund, ob eine neue
    Version vorliegt. Sie laden nur neu, wenn gerade kein Dialog offen ist. */
@@ -1661,7 +1695,8 @@ document.addEventListener('click', e => {
     selAll() { const all = selectable(); ui.sel = new Set(all.every(i => ui.sel.has(i)) ? [] : all); render(); },
     selDelete() { selDelete(); },
     selYes() { selApply(); },
-    nav() { ui.sel = null; ui.view = el.dataset.v; ui.adminMenu = true; render(); scrollTo(0, 0); },
+    nav() { ui.sel = null; ui.view = el.dataset.v; ui.adminMenu = true; render(); scrollTo(0, 0); if (ui.view === 'admin' && !ui.unlocked && bioOn()) bioUnlock(); },
+    bioUnlock() { bioUnlock(); },
     adminBack() { ui.sel = null; ui.adminMenu = true; render(); scrollTo(0, 0); },
     filter() { ui.filter = id; render(); },
     toggle() { toggle(el); },
@@ -1728,6 +1763,14 @@ document.addEventListener('input', e => {
 });
 document.addEventListener('change', async e => {
   const feature = e.target.dataset?.feature;
+  if (feature === 'bio') {
+    if (e.target.checked) {
+      try { await bioEnable(); toast('Fingerabdruck eingerichtet'); }
+      catch { toast('Einrichten hat nicht geklappt', '', true); }
+    } else { bioDisable(); toast('Ausgeschaltet'); }
+    render();
+    return;
+  }
   if (feature) {
     const on = e.target.checked;
     if (feature === 'pflicht' || feature === 'bonus') state.features = { ...state.features, [feature]:on };
@@ -1769,6 +1812,7 @@ closeDays();
 save();
 render();
 announceUpdate();
+if (onWeb && window.PublicKeyCredential) PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable().then(v => { bioReady = v; }).catch(() => {});
 if (onWeb && 'serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
 setInterval(checkUpdate, 3600000);
 document.addEventListener('visibilitychange', () => { if (!document.hidden) checkUpdate(); });
