@@ -260,6 +260,15 @@
   .photo .btn { min-height: 44px; padding: 8px 12px; font-size: 15.5px; }
   .photo input { display: none; }
 
+  .crop-veil { position: fixed; inset: 0; z-index: 15; background: rgba(23,32,43,.6); display: flex; align-items: center; justify-content: center; padding: 16px; }
+  .crop-box { background: #fff; border-radius: 22px; padding: 18px; width: min(380px, 100%); max-height: calc(100% - 16px); overflow: auto; }
+  .crop-box h2 { margin-bottom: 4px; }
+  .crop-stage { position: relative; width: 100%; aspect-ratio: 1; margin: 10px 0 12px; border-radius: 14px; overflow: hidden; background: #2b3038; touch-action: none; cursor: grab; }
+  .crop-stage:active { cursor: grabbing; }
+  .crop-stage canvas { display: block; width: 100%; height: 100%; }
+  .crop-stage::after { content: ""; position: absolute; inset: 0; border-radius: 50%; box-shadow: 0 0 0 200px rgba(23,32,43,.5); pointer-events: none; outline: 2px solid #fff; outline-offset: -2px; }
+  .crop-zoom { display: flex; align-items: center; gap: 10px; min-height: 44px; }
+  .crop-zoom input { flex: 1; accent-color: var(--primary); height: 32px; }
   .pick { display: flex; align-items: center; gap: 12px; padding: 10px 4px; border-bottom: 1px solid var(--line); width: 100%; cursor: pointer; }
   .pick:last-of-type { border-bottom: 0; }
   .pick .t { flex: 1; min-width: 0; }
@@ -344,10 +353,10 @@
 <div id="modal"></div>
 <div id="toast" aria-live="polite"></div>
 
-<script src="icons.js?v=07ad0181"></script>
+<script src="icons.js?v=b6c16806"></script>
 <script>
 'use strict';
-const APP_VERSION = '07ad0181'; // setzt tools/embed-assets.py
+const APP_VERSION = 'b6c16806'; // setzt tools/embed-assets.py
 
 /* ==========================================================================
    Speicher-Schnittstelle
@@ -1201,16 +1210,66 @@ function photoRefresh(base) {
   $('#photoPrev').innerHTML = avatar({ ...base, photo:photoDraft ?? (photoDraft === null ? undefined : base.photo) }, 'lg');
   $('#photoDel').classList.toggle('hidden', photoDraft === null || (!photoDraft && !base.photo));
 }
-/* Mittig quadratisch zuschneiden und verkleinern, damit der lokale Speicher reicht */
-async function readPhoto(file) {
-  const url = URL.createObjectURL(file);
-  try {
-    const img = new Image(); img.src = url; await img.decode();
-    const side = Math.min(img.naturalWidth, img.naturalHeight), size = 256;
-    const c = document.createElement('canvas'); c.width = c.height = size;
-    c.getContext('2d').drawImage(img, (img.naturalWidth-side)/2, (img.naturalHeight-side)/2, side, side, 0, 0, size, size);
-    return c.toDataURL('image/jpeg', .82);
-  } finally { URL.revokeObjectURL(url); }
+/* Foto zuschneiden: verschieben mit Finger oder Maus, vergrößern mit zwei Fingern, Regler oder
+   Mausrad. Gespeichert wird nur der gewählte Ausschnitt, verkleinert für den lokalen Speicher. */
+function cropPhoto(file) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file), img = new Image();
+    const fail = () => { URL.revokeObjectURL(url); reject(new Error('Foto nicht lesbar')); };
+    img.onerror = fail;
+    img.onload = () => {
+      const box = document.createElement('div');
+      box.className = 'crop-veil';
+      box.innerHTML = `<div class="crop-box" role="dialog" aria-modal="true"><h2>Foto zuschneiden</h2>
+        <p class="muted small" style="margin:0">Mit dem Finger verschieben, mit zwei Fingern oder dem Regler vergrößern.</p>
+        <div class="crop-stage"><canvas></canvas></div>
+        <label class="crop-zoom"><span class="muted small">Vergrößern</span><input type="range" min="1" max="4" step="0.01" value="1" aria-label="Vergrößern"></label>
+        <div class="actions"><button type="button" class="btn ghost" data-crop="no">Abbrechen</button><button type="button" class="btn" data-crop="ok">Übernehmen</button></div></div>`;
+      document.body.append(box);
+      const stage = box.querySelector('.crop-stage'), canvas = box.querySelector('canvas'), range = box.querySelector('input');
+      const S = stage.clientWidth, dpr = Math.min(2, devicePixelRatio || 1), W = img.naturalWidth, H = img.naturalHeight;
+      canvas.width = canvas.height = Math.round(S * dpr);
+      const base = S / Math.min(W, H);
+      let zoom = 1, ox = 0, oy = 0;
+      const clamp = () => {
+        const mx = (W * base * zoom - S) / 2, my = (H * base * zoom - S) / 2;
+        ox = Math.max(-mx, Math.min(mx, ox)); oy = Math.max(-my, Math.min(my, oy));
+      };
+      const paint = (ctx, size) => {
+        const f = size / S, sc = base * zoom;
+        ctx.drawImage(img, (S/2 - W*sc/2 + ox) * f, (S/2 - H*sc/2 + oy) * f, W*sc*f, H*sc*f);
+      };
+      const draw = () => { clamp(); paint(canvas.getContext('2d'), canvas.width); };
+      const setZoom = z => { const old = zoom; zoom = Math.max(1, Math.min(4, z)); ox *= zoom/old; oy *= zoom/old; range.value = zoom; draw(); };
+      const finish = data => { box.remove(); URL.revokeObjectURL(url); resolve(data); };
+      const touches = new Map(); let spread = 0;
+      const gap = () => { const [a, b] = [...touches.values()]; return Math.hypot(a.x-b.x, a.y-b.y); };
+      stage.addEventListener('pointerdown', e => { stage.setPointerCapture(e.pointerId); touches.set(e.pointerId, { x:e.clientX, y:e.clientY }); if (touches.size === 2) spread = gap(); });
+      stage.addEventListener('pointermove', e => {
+        const t = touches.get(e.pointerId);
+        if (!t) return;
+        const dx = e.clientX - t.x, dy = e.clientY - t.y;
+        t.x = e.clientX; t.y = e.clientY;
+        if (touches.size === 1) { ox += dx * S / stage.getBoundingClientRect().width; oy += dy * S / stage.getBoundingClientRect().height; draw(); }
+        else if (touches.size === 2) { const g = gap(); if (spread) setZoom(zoom * g / spread); spread = g; }
+      });
+      const lift = e => { touches.delete(e.pointerId); spread = 0; };
+      stage.addEventListener('pointerup', lift); stage.addEventListener('pointercancel', lift);
+      stage.addEventListener('wheel', e => { e.preventDefault(); setZoom(zoom * (e.deltaY < 0 ? 1.08 : .93)); }, { passive:false });
+      range.addEventListener('input', () => setZoom(Number(range.value)));
+      box.addEventListener('click', e => {
+        const a = e.target.closest('[data-crop]')?.dataset.crop;
+        if (a === 'no') finish(null);
+        if (a === 'ok') {
+          const out = document.createElement('canvas'); out.width = out.height = 256;
+          paint(out.getContext('2d'), 256);
+          finish(out.toDataURL('image/jpeg', .82));
+        }
+      });
+      draw();
+    };
+    img.src = url;
+  });
 }
 
 function presetPicker(kind) {
@@ -1646,9 +1705,10 @@ document.addEventListener('change', async e => {
     return;
   }
   if (e.target.matches('[data-photo]') && e.target.files[0]) {
-    try { photoDraft = await readPhoto(e.target.files[0]); photoRefresh(modal.photoBase); }
-    catch { toast('Dieses Foto konnte nicht gelesen werden', '', true); }
+    const file = e.target.files[0];
     e.target.value = '';
+    try { const data = await cropPhoto(file); if (data) { photoDraft = data; photoRefresh(modal.photoBase); } }
+    catch { toast('Dieses Foto konnte nicht gelesen werden', '', true); }
     return;
   }
   if (e.target.id !== 'importFile' || !e.target.files[0]) return;
