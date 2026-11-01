@@ -256,6 +256,10 @@
   .daybar .mid b { font-size: 18px; font-weight: 650; font-variant-numeric: tabular-nums; }
   .daybar .mid input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
   .daybar + .stat { flex: none; }
+  .sync-btn { width: 52px; height: 52px; border-radius: 14px; background: #fff; box-shadow: var(--shadow); color: var(--primary); display: flex; align-items: center; justify-content: center; flex: none; font-size: 19px; }
+  .sync-btn.spin svg { animation: spin .9s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) { .sync-btn.spin svg { animation: none; opacity: .5; } }
   .day-note { background: #FCEBB5; border-radius: 12px; padding: 9px 13px; margin-bottom: 14px; font-size: 15.5px; display: flex; justify-content: space-between; align-items: center; gap: 10px; }
   .day-note button { font-weight: 650; color: var(--primary); min-height: 36px; }
   .stats-link { display: inline-flex; align-items: center; gap: 7px; color: var(--primary); font-weight: 620; min-height: 48px; margin-top: 18px; padding: 8px 2px; }
@@ -329,6 +333,10 @@
     .stat { flex: 1; padding: 8px 12px; min-width: 0; }
     .daybar { flex: 1; min-width: 0; }
     .daybar .mid { min-width: 0; }
+    .daybar { gap: 0; padding: 5px 2px; }
+    .daybar button { width: 30px; }
+    .daybar .mid b { font-size: 16px; }
+    .sync-btn { width: 46px; height: auto; align-self: stretch; }
     .daybar + .stat { flex: 0 0 auto; }
     .stat span { font-size: 13px; white-space: nowrap; }
     .stat b { font-size: 18px; }
@@ -375,10 +383,10 @@
 <div id="modal"></div>
 <div id="toast" aria-live="polite"></div>
 
-<script src="icons.js?v=01b822e1"></script>
+<script src="icons.js?v=7229cca6"></script>
 <script>
 'use strict';
-const APP_VERSION = '01b822e1'; // setzt tools/embed-assets.py
+const APP_VERSION = '7229cca6'; // setzt tools/embed-assets.py
 
 /* ==========================================================================
    Speicher-Schnittstelle
@@ -638,6 +646,7 @@ const SVG = {
   grad:'<path d="M2 9l10-5 10 5-10 5z"/><path d="M6 11.500V16c3 2.500 9 2.500 12 0v-4.500M22 9v6"/>',
   finger:'<path d="M7.500 4.500A9 9 0 0 1 20.500 12v1M4.500 8A9 9 0 0 0 3.500 12v2M8 19.500c.7-1.700 1-3.500 1-5.500v-2a3 3 0 0 1 6 0v2.500M12 12v2.500c0 2.300-.5 4.500-1.500 6.500M15 18c-.1 1-.3 2-.6 3M18.500 15.500c0 1-.1 2-.3 3"/>',
   back:'<path d="M15 5l-7 7 7 7"/>',
+  sync:'<path d="M20 11a8 8 0 0 0-14.300-4.300L4 8.500M4 4v4.500h4.500M4 13a8 8 0 0 0 14.300 4.300L20 15.500M20 20v-4.500h-4.500"/>',
   flame:'<path d="M12 3c1 3.500 5.500 5.500 5.500 10.500a5.500 5.500 0 01-11 0c0-2 1-3.500 2-4.500.3 1.500 1 2.500 2 3 0-3.500 0-6 1.500-9z"/>',
   alert:'<circle cx="12" cy="12" r="9"/><path d="M12 7.500V13M12 16.500v.01"/>',
 };
@@ -1055,6 +1064,7 @@ function viewTasks() {
       <div class="stats">
         ${dayBar(day)}
         <div class="stat">${ic('tasks')}<div><span>Offen</span><b>${open}</b></div></div>
+        ${syncBtn()}
       </div>
     </div>
     ${dayNote()}
@@ -1077,7 +1087,7 @@ function viewTimeline() {
     line += `<span class="hour">${esc(i.task.time)}</span>${taskRow(i, day, false)}`;
   }
   if (!shownNow && timed.length) line += `<div class="now">Jetzt ${nowText}</div>`;
-  return `<div class="top"><h1>Zeitstrahl</h1><div class="stats">${dayBar(day)}</div></div>
+  return `<div class="top"><h1>Zeitstrahl</h1><div class="stats">${dayBar(day)}${syncBtn()}</div></div>
     ${dayNote()}${personTiles(d)}
     ${timed.length ? `<div class="timeline">${line}</div>` : '<div class="empty" style="margin-bottom:22px">Noch keine Uhrzeiten. Trage sie in der Verwaltung bei den Aufgaben ein.</div>'}
     ${rest.length ? `<h2>Ohne Uhrzeit</h2><div class="list">${rest.map(i => taskRow(i, day)).join('')}</div>` : ''}`;
@@ -1102,7 +1112,7 @@ function viewRewards() {
     `<button class="reward" data-act="redeem" data-id="${esc(r.id)}">${rewardThumb(r)}<b style="font-weight:600">${esc(plainName(r.name))}</b><span class="chip">${r.cost} P</span></button>`).join('');
   const last = [...state.rewardHistory].sort((a,b) => b.date.localeCompare(a.date)).slice(0,5);
   return `
-    <div class="top"><h1>Belohnungen</h1></div>
+    <div class="top"><h1>Belohnungen</h1>${syncBtn()}</div>
     <div class="accounts">${pts}</div>
     ${goalCard()}
     <h2>Einlösen</h2>
@@ -1756,6 +1766,14 @@ async function syncNow(force = false) {
   } finally { syncView.busy = false; }
   if (ui.view === 'admin' && ui.admin === 'settings' && !syncBlocked()) render();
 }
+const syncBtn = () => syncOn() && syncCfg() ? `<button class="sync-btn ${syncView.busy?'spin':''}" data-act="syncManual" aria-label="Jetzt abgleichen" title="Jetzt abgleichen">${ic('sync')}</button>` : '';
+async function syncManual() {
+  if (syncView.busy) return;
+  $('.sync-btn')?.classList.add('spin');
+  await syncNow(true);
+  render();
+  if (syncView.error) toast(syncView.error, '', true); else toast('Abgeglichen');
+}
 async function syncCreate() {
   syncSet({ code:newCode(), version:0, dirty:true });
   await syncNow(true);
@@ -1956,7 +1974,7 @@ document.addEventListener('click', e => {
     selYes() { selApply(); },
     nav() { ui.sel = null; ui.view = el.dataset.v; ui.adminMenu = true; render(); scrollTo(0, 0); if (ui.view === 'admin' && !ui.unlocked && bioOn()) bioUnlock(); },
     bioUnlock() { bioUnlock(); },
-    syncCreate() { syncCreate(); }, syncJoinForm() { syncJoinForm(); }, syncRun() { syncNow(true); },
+    syncManual() { syncManual(); }, syncCreate() { syncCreate(); }, syncJoinForm() { syncJoinForm(); }, syncRun() { syncNow(true); },
     syncShow() { $('#syncCode').type = 'text'; },
     syncLeave() { if (confirm('Dieses Gerät trennen? Die Daten bleiben hier erhalten, gleichen sich aber nicht mehr ab.')) { try { localStorage.removeItem(SYNC_KEY); } catch {} render(); } },
     adminBack() { ui.sel = null; ui.adminMenu = true; render(); scrollTo(0, 0); },
