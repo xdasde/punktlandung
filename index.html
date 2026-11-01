@@ -353,10 +353,10 @@
 <div id="modal"></div>
 <div id="toast" aria-live="polite"></div>
 
-<script src="icons.js?v=e3537019"></script>
+<script src="icons.js?v=713c9770"></script>
 <script>
 'use strict';
-const APP_VERSION = 'e3537019'; // setzt tools/embed-assets.py
+const APP_VERSION = '713c9770'; // setzt tools/embed-assets.py
 
 /* ==========================================================================
    Speicher-Schnittstelle
@@ -1602,7 +1602,7 @@ async function bioUnlock() {
 /* --------- Familien-Code: verschlüsselter Abgleich zwischen Geräten ---------
    Aus dem Code entstehen Speicherort und Schlüssel. Der Server sieht nur einen verschlüsselten Block.
    Die Verbindung liegt außerhalb von state, sie gilt je Gerät und gehört nicht in einen Export. */
-const SYNC_DEFAULT = ''; // Adresse des Workers, solange leer ist der Bereich ausgeblendet
+const SYNC_DEFAULT = 'https://punktlandung-sync.punktlandung-app.workers.dev'; // Adresse des Workers, solange leer ist der Bereich ausgeblendet
 const SYNC_URL = flag.get('punktlandung.syncUrl') || SYNC_DEFAULT;
 const SYNC_KEY = 'punktlandung.sync', CODE_ABC = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789X';
 const syncOn = () => onWeb && !!SYNC_URL && !!crypto.subtle;
