@@ -4,10 +4,10 @@ Aufgaben und Belohnungen für die Familie, gemacht fürs Küchen-iPad. Die App i
 
 Alle Daten bleiben lokal auf dem Gerät. In diesem Repository liegt nur die App mit erfundenen Demodaten.
 
-**Installieren:** Die App in Safari auf dem iPad öffnen und mit „Zum Home-Bildschirm“ ablegen.
+**Installieren:** Die App in Safari auf dem iPad öffnen und mit „Zum Home-Bildschirm“ ablegen. Die App zeigt die Anleitung selbst an und läuft danach auch ohne Internet.
 
 **Einrichten:** Die App startet mit Beispieldaten. Der Button „Eigene Familie einrichten“ führt durch Familienname, Mitglieder und PIN für die Verwaltung. In den Beispieldaten ist die PIN 1234.
 
 **Daten teilen:** Unter Verwaltung → Einstellungen lässt sich der komplette Stand als JSON-Datei exportieren und auf einem anderen Gerät importieren. Der Import ersetzt alle Daten dort, auch die PIN. Die Datei enthält eure Daten und die PIN im Klartext und gehört nicht in ein öffentliches Repository.
 
-**Grafiken ändern:** Die Dateien in `assets/` sind in `index.html` eingebettet, damit die App eine einzelne Datei bleibt. Nach einer Änderung `python3 tools/embed-assets.py` ausführen.
+**Grafiken ändern:** Die Dateien in `assets/` sind in `index.html` eingebettet, damit die App eine einzelne Datei bleibt. Vor jedem Release `python3 tools/embed-assets.py` ausführen: Das bettet die Grafiken ein und setzt die neue Version, mit der sich installierte Apps selbst aktualisieren.
