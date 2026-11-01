@@ -1,0 +1,715 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Punktlandung</title>
+<meta name="apple-mobile-web-app-title" content="Punktlandung">
+<style>
+  :root {
+    --paper: #f7f1e6;
+    --card: #fffdf8;
+    --ink: #2b2a33;
+    --muted: #6d6a72;
+    --line: #e5dccb;
+    --accent: #1f6f5c;
+    --accent-soft: #dcefe8;
+    --open: #fbe9b7;
+    --open-ink: #6b4e00;
+    --done: #d5edd9;
+    --done-ink: #1c5a2c;
+    --miss: #f7d9d3;
+    --miss-ink: #842c1c;
+    --radius: 18px;
+    --tap: 64px;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; }
+  body {
+    background: var(--paper); color: var(--ink);
+    font: 17px/1.35 ui-rounded, "SF Pro Rounded", "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
+    padding-bottom: calc(84px + env(safe-area-inset-bottom));
+  }
+  button, input, select { font: inherit; color: inherit; }
+  button { cursor: pointer; border: 0; background: none; }
+  button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+  main { max-width: 1240px; margin: 0 auto; padding: 20px 20px 12px; }
+  h1 { font-size: 30px; margin: 0; letter-spacing: -.01em; }
+  h2 { font-size: 21px; margin: 0 0 12px; }
+  .muted { color: var(--muted); }
+  .small { font-size: 15px; }
+
+  /* Kopf */
+  .top { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 18px; flex-wrap: wrap; }
+  .stats { display: flex; gap: 10px; }
+  .stat { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 8px 16px; }
+  .stat span { display: block; font-size: 14px; color: var(--muted); }
+  .stat b { font-size: 22px; font-variant-numeric: tabular-nums; }
+
+  /* Personen-Kacheln */
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(128px, 1fr)); gap: 12px; margin-bottom: 22px; }
+  .tile {
+    background: var(--card); border: 2px solid var(--line); border-radius: var(--radius);
+    padding: 12px 8px; text-align: center; min-height: 112px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
+  }
+  .tile .emo { font-size: 38px; line-height: 1.15; }
+  .tile .name { font-weight: 650; }
+  .tile .sub { font-size: 14px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .tile.on { border-color: var(--c, var(--accent)); box-shadow: inset 0 0 0 2px var(--c, var(--accent)); background: #fff; }
+  .tile:disabled { opacity: .42; cursor: not-allowed; }
+
+  /* Aufgaben */
+  .cols { display: grid; grid-template-columns: 1fr; gap: 22px; }
+  @media (min-width: 880px) { .cols { grid-template-columns: 3fr 2fr; } }
+  .list { display: flex; flex-direction: column; gap: 8px; }
+  .row {
+    width: 100%; min-height: var(--tap); text-align: left;
+    display: flex; align-items: center; gap: 12px; padding: 8px 14px;
+    background: var(--card); border: 1px solid var(--line); border-radius: 14px;
+    border-left: 6px solid var(--c, var(--line));
+  }
+  .row .emo { font-size: 26px; width: 34px; text-align: center; flex: none; }
+  .row .what { flex: 1; min-width: 0; }
+  .row .what b { display: block; font-weight: 620; }
+  .row .pts { color: var(--muted); font-size: 15px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .row.done { background: transparent; }
+  .row.done .what b { color: var(--muted); text-decoration: line-through; text-decoration-thickness: 1px; }
+  .pill { font-size: 14px; font-weight: 600; padding: 5px 11px; border-radius: 999px; white-space: nowrap; }
+  .pill.open { background: var(--open); color: var(--open-ink); }
+  .pill.done { background: var(--done); color: var(--done-ink); }
+  .pill.miss { background: var(--miss); color: var(--miss-ink); }
+  .empty { padding: 18px; color: var(--muted); border: 1px dashed var(--line); border-radius: 14px; text-align: center; }
+
+  /* Karten */
+  .panel { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; margin-bottom: 18px; }
+  .rewards { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 12px; }
+  .reward { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px; min-height: 96px; text-align: left; display: flex; flex-direction: column; justify-content: space-between; gap: 8px; }
+  .reward b { font-weight: 620; }
+  .reward span { color: var(--muted); font-variant-numeric: tabular-nums; }
+
+  /* Tabellen */
+  .scroll { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: 16px; }
+  th { text-align: left; font-size: 14px; color: var(--muted); font-weight: 600; white-space: nowrap; }
+  th, td { padding: 10px; border-bottom: 1px solid var(--line); }
+  tbody tr.click { cursor: pointer; }
+  tbody tr.click:hover { background: #fbf6ec; }
+  tr.inactive td { color: var(--muted); }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+
+  /* Verwaltung */
+  .subnav { display: flex; gap: 6px; overflow-x: auto; margin-bottom: 16px; padding-bottom: 2px; }
+  .subnav button { padding: 10px 15px; border-radius: 999px; white-space: nowrap; background: transparent; border: 1px solid var(--line); min-height: 46px; }
+  .subnav button.on { background: var(--ink); color: #fff; border-color: var(--ink); }
+  .bar-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }
+  .bar-head h2 { margin: 0; }
+  .btn { padding: 11px 18px; border-radius: 12px; font-weight: 620; background: var(--accent); color: #fff; min-height: 46px; }
+  .btn.ghost { background: transparent; color: var(--ink); border: 1px solid var(--line); }
+  .btn.danger { background: transparent; color: var(--miss-ink); border: 1px solid #e3b3a8; }
+  .btn:disabled { opacity: .5; cursor: not-allowed; }
+
+  /* Statistik */
+  .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 18px; }
+  .grid2 .panel { margin: 0; }
+  .bars { display: flex; flex-direction: column; gap: 10px; }
+  .bar { display: grid; grid-template-columns: 130px 1fr 62px; gap: 10px; align-items: center; font-size: 16px; }
+  .bar .track { height: 12px; }
+  .bar .fill { height: 12px; background: var(--accent); border-radius: 0 4px 4px 0; }
+  .bar .val { text-align: right; font-variant-numeric: tabular-nums; }
+  .bar .lbl { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  /* Navigation */
+  nav.main {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 5;
+    display: grid; grid-template-columns: repeat(4, 1fr);
+    background: var(--card); border-top: 1px solid var(--line);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  nav.main button { padding: 9px 4px 10px; min-height: 72px; color: var(--muted); font-size: 15px; font-weight: 600; }
+  nav.main .emo { display: block; font-size: 25px; }
+  nav.main button.on { color: var(--ink); box-shadow: inset 0 3px 0 var(--accent); }
+
+  /* Dialog */
+  .veil { position: fixed; inset: 0; background: rgba(40,35,30,.45); display: flex; align-items: center; justify-content: center; padding: 16px; z-index: 10; }
+  .modal { background: var(--card); border-radius: 22px; padding: 22px; width: min(560px, 100%); max-height: calc(100% - 32px); overflow: auto; }
+  .modal h2 { font-size: 23px; }
+  .field { display: block; margin-bottom: 12px; }
+  .field > span { display: block; font-size: 15px; color: var(--muted); margin-bottom: 4px; }
+  .field input:not([type=checkbox]):not([type=radio]), .field select { width: 100%; padding: 12px; border: 1px solid var(--line); border-radius: 10px; background: #fff; min-height: 48px; }
+  .check { display: flex; align-items: center; gap: 10px; min-height: 44px; margin-bottom: 8px; }
+  .check input { width: 22px; height: 22px; }
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 16px; flex-wrap: wrap; }
+  .actions .left { margin-right: auto; }
+  .swatches { display: flex; gap: 10px; flex-wrap: wrap; }
+  .swatches input { position: absolute; opacity: 0; }
+  .swatches i { display: block; width: 42px; height: 42px; border-radius: 50%; border: 3px solid transparent; }
+  .swatches input:checked + i { border-color: var(--ink); }
+  .swatches input:focus-visible + i { outline: 3px solid var(--accent); outline-offset: 2px; }
+  .hidden { display: none !important; }
+
+  .toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(92px + env(safe-area-inset-bottom)); background: var(--ink); color: #fff; padding: 11px 18px; border-radius: 12px; z-index: 20; }
+</style>
+</head>
+<body>
+<main id="app"></main>
+<nav class="main" id="nav" aria-label="Hauptbereiche"></nav>
+<div id="modal"></div>
+<div id="toast" aria-live="polite"></div>
+
+<script>
+'use strict';
+/* ==========================================================================
+   Speicher-Schnittstelle
+   Die App spricht nur mit Store. Die Daten liegen lokal auf dem Gerät.
+   Ein späteres GitHub-Backup kann denselben JSON-Stand verwenden, den die
+   Sicherung in den Einstellungen als Datei schreibt.
+   ========================================================================== */
+const LocalStore = {
+  key: 'familienaufgaben.v1',
+  load() { try { return JSON.parse(localStorage.getItem(this.key)); } catch { return null; } },
+  save(s) { try { localStorage.setItem(this.key, JSON.stringify(s)); } catch { /* z. B. privater Modus */ } },
+  clear() { try { localStorage.removeItem(this.key); } catch {} },
+};
+const Store = LocalStore;
+
+/* --------- Hilfen --------- */
+const WEEKDAYS = ['Sonntag','Montag','Dienstag','Mittwoch','Donnerstag','Freitag','Samstag'];
+const MONTHS = ['Jan','Feb','Mär','Apr','Mai','Jun','Jul','Aug','Sep','Okt','Nov','Dez'];
+const COLORS = ['#3b6fb5','#c2528b','#2f8f6b','#d9822b','#7a5cc0','#b8483a'];
+const EMOJIS = ['👨','👩','🧑','👦','👧','🐼','🐰','🦊','🐻','🐯','🐸','🦄'];
+const pad = n => String(n).padStart(2, '0');
+const dateKey = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+const parseKey = k => { const [y,m,d] = k.split('-').map(Number); return new Date(y, m-1, d); };
+const addDays = (k, n) => { const d = parseKey(k); d.setDate(d.getDate()+n); return dateKey(d); };
+const diffDays = (a, b) => { // a - b, sommerzeitfest
+  const [ay,am,ad] = a.split('-').map(Number), [by,bm,bd] = b.split('-').map(Number);
+  return Math.round((Date.UTC(ay,am-1,ad) - Date.UTC(by,bm-1,bd)) / 864e5);
+};
+const today = () => dateKey(new Date());
+const fmtDate = k => { const [y,m,d] = k.split('-'); return `${d}.${m}.${y}`; };
+const fmtShort = k => { const [,m,d] = k.split('-'); return `${d}.${m}.`; };
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const $ = s => document.querySelector(s);
+
+/* --------- Demodaten --------- */
+function emptyState() {
+  return { familyName: 'Unsere Familie', pin: '1234', lastClosed: addDays(today(), -1),
+           members: [], tasks: [], rewards: [], taskHistory: [], rewardHistory: [] };
+}
+function demoState() {
+  const s = emptyState();
+  const t0 = addDays(today(), -90);
+  s.members = [
+    { id:'m1', name:'Alex',   emoji:'👨', color:COLORS[0], active:true },
+    { id:'m2', name:'Sam', emoji:'👩', color:COLORS[1], active:true },
+    { id:'m3', name:'Mia', emoji:'🐼', color:COLORS[2], active:true },
+    { id:'m4', name:'Leo',    emoji:'🐰', color:COLORS[3], active:true },
+  ];
+  const task = (id,name,type,person,points,rec='taeglich',extra={}) =>
+    ({ id,name,type,person,points,rec,interval:3,weekday:3,times:1,active:true,start:t0,...extra });
+  s.tasks = [
+    task('t1','Zähne putzen','Pflicht','m3',1,'taeglich',{times:2}),
+    task('t2','Schulranzen packen','Pflicht','m3',2),
+    task('t3','Bett machen','Pflicht','alle',1),
+    task('t4','Zähne putzen','Pflicht','m4',1,'taeglich',{times:2}),
+    task('t5','Spülmaschine ausräumen','Pflicht','m1',2),
+    task('t6','Wäsche aufhängen','Pflicht','m2',2),
+    task('t7','Müll rausbringen','Bonus','offen',5),
+    task('t8','Saugen','Bonus','offen',20),
+    task('t9','Tisch abräumen','Bonus','offen',2,'taeglich',{times:3}),
+    task('t10','Biomüll','Bonus','offen',10,'wochentag',{weekday:3}),
+    task('t11','Blumen gießen','Bonus','offen',5,'intervall',{interval:3}),
+  ];
+  s.rewards = [
+    ['🍦 Eis',25],['🎮 30 Minuten Switch',40],['🧸 Kleine Überraschung',50],['🍕 Lieblingsessen',75],
+    ['🍿 Kinoabend',100],['🛍️ 10€ Wunschbudget',250],['🎳 Familienausflug auswählen',500],
+  ].map(([name,cost],i) => ({ id:'r'+i, name, cost, active:true }));
+
+  // Reproduzierbare Beispiel-Historie der letzten 90 Tage
+  let seed = 42; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  for (let n = 90; n >= 1; n--) {
+    const day = addDays(today(), -n);
+    for (const inst of instances(s, day)) {
+      if (inst.task.type === 'Pflicht') {
+        const ok = rnd() < .84;
+        s.taskHistory.push(entry(day, inst, inst.memberId, ok));
+      } else if (rnd() < .4) {
+        s.taskHistory.push(entry(day, inst, s.members[Math.floor(rnd()*4)].id, true));
+      }
+    }
+    if (n > 3 && rnd() < .12) {
+      const r = s.rewards[Math.floor(rnd()*4)];
+      s.rewardHistory.push({ id:uid(), date:day, memberId:s.members[Math.floor(rnd()*4)].id, name:r.name, cost:r.cost });
+    }
+  }
+  s.rewardHistory.push({ id:uid(), date:addDays(today(),-2), memberId:'m4', name:'🎮 30 Minuten Switch', cost:40 });
+  s.rewardHistory.push({ id:uid(), date:addDays(today(),-1), memberId:'m3', name:'🍦 Eis', cost:25 });
+  // Für heute schon etwas erledigt
+  const inst = instances(s, today());
+  const pick = (tid) => inst.find(i => i.task.id === tid);
+  if (pick('t2')) s.taskHistory.push(entry(today(), pick('t2'), 'm3', true));
+  if (pick('t7')) s.taskHistory.push(entry(today(), pick('t7'), 'm3', true));
+  return s;
+}
+
+/* --------- Fachlogik --------- */
+function isDue(task, day) {
+  if (!task.active || day < task.start) return false;
+  if (task.rec === 'wochentag') return parseKey(day).getDay() === Number(task.weekday);
+  if (task.rec === 'intervall') return diffDays(day, task.start) % Math.max(1, Number(task.interval)) === 0;
+  return true;
+}
+/* Tagesaufgaben werden aus den Regeln berechnet, nicht vorab gespeichert. */
+function instances(s, day) {
+  const out = [];
+  const active = s.members.filter(m => m.active);
+  for (const task of s.tasks) {
+    if (!isDue(task, day)) continue;
+    const people = task.type === 'Bonus' ? [null]
+      : task.person === 'alle' ? active.map(m => m.id)
+      : active.some(m => m.id === task.person) ? [task.person] : [];
+    for (const memberId of people)
+      for (let slot = 1; slot <= task.times; slot++) out.push({ task, memberId, slot });
+  }
+  return out;
+}
+function entry(day, inst, memberId, ok) {
+  return { id:uid(), date:day, taskId:inst.task.id, slot:inst.slot, memberId,
+           name:inst.task.name, status: ok ? 'Erledigt' : 'Nicht erledigt', points: ok ? Number(inst.task.points) : 0 };
+}
+function findEntry(day, inst) {
+  return state.taskHistory.find(h => h.date === day && h.taskId === inst.task.id && h.slot === inst.slot
+    && (inst.memberId === null || h.memberId === inst.memberId));
+}
+/* Punkte sind immer aus den Historien abgeleitet, nie separat gespeichert.
+   Dadurch wirken Admin-Korrekturen sofort. */
+function balance(memberId) {
+  let sum = 0;
+  for (const h of state.taskHistory) if (h.memberId === memberId && h.status === 'Erledigt') sum += Number(h.points);
+  for (const h of state.rewardHistory) if (h.memberId === memberId) sum -= Number(h.cost);
+  return sum;
+}
+/* Tagesabschluss: offene Pflichtaufgaben vergangener Tage werden zu „Nicht
+   erledigt“. Läuft beim Öffnen und beim Datumswechsel; holt verpasste Tage nach. */
+function closeDays() {
+  const t = today();
+  let day = addDays(state.lastClosed, 1);
+  if (diffDays(t, day) > 62) day = addDays(t, -62);
+  let changed = false;
+  while (day < t) {
+    for (const inst of instances(state, day))
+      if (inst.task.type === 'Pflicht' && !findEntry(day, inst)) {
+        state.taskHistory.push(entry(day, inst, inst.memberId, false));
+        changed = true;
+      }
+    state.lastClosed = day; changed = true;
+    day = addDays(day, 1);
+  }
+  if (changed) save();
+}
+
+/* --------- Zustand --------- */
+let state = Store.load() || demoState();
+const ui = { view:'tasks', filter:'alle', admin:'tasks', unlocked:false, day:today() };
+const save = () => Store.save(state);
+const member = id => state.members.find(m => m.id === id);
+const activeMembers = () => state.members.filter(m => m.active);
+const mName = id => member(id)?.name ?? 'Unbekannt';
+const mLabel = id => { const m = member(id); return m ? `${esc(m.emoji)} ${esc(m.name)}` : 'Unbekannt'; };
+
+/* --------- Darstellung --------- */
+function render() {
+  const views = { tasks:viewTasks, rewards:viewRewards, stats:viewStats, admin:viewAdmin };
+  $('#app').innerHTML = views[ui.view]();
+  const nav = [['tasks','📋','Aufgaben'],['rewards','🎁','Belohnungen'],['stats','📊','Statistik'],['admin','⚙️','Verwaltung']];
+  $('#nav').innerHTML = nav.map(([v,e,l]) =>
+    `<button data-act="nav" data-v="${v}" class="${ui.view===v?'on':''}" ${ui.view===v?'aria-current="page"':''}><span class="emo">${e}</span>${l}</button>`).join('');
+}
+
+function viewTasks() {
+  const day = today();
+  const all = instances(state, day).map(i => ({ ...i, h: findEntry(day, i) }));
+  const f = ui.filter;
+  const must = all.filter(i => i.task.type === 'Pflicht' && (f === 'alle' || i.memberId === f))
+    .sort((a,b) => (!!a.h - !!b.h) || state.members.findIndex(m=>m.id===a.memberId) - state.members.findIndex(m=>m.id===b.memberId));
+  const bonus = all.filter(i => i.task.type === 'Bonus').sort((a,b) => !!a.h - !!b.h);
+  const open = must.filter(i => !i.h).length + bonus.filter(i => !i.h).length;
+  const openOf = id => all.filter(i => !i.h && i.memberId === id).length;
+
+  const tiles = activeMembers().map(m =>
+    `<button class="tile ${f===m.id?'on':''}" style="--c:${esc(m.color)}" data-act="filter" data-id="${m.id}" aria-pressed="${f===m.id}">
+       <span class="emo">${esc(m.emoji)}</span><span class="name">${esc(m.name)}</span><span class="sub">${openOf(m.id)} offen</span></button>`).join('')
+    + `<button class="tile ${f==='alle'?'on':''}" data-act="filter" data-id="alle" aria-pressed="${f==='alle'}">
+       <span class="emo">👨‍👩‍👧‍👧</span><span class="name">Alle</span><span class="sub">${all.filter(i=>!i.h).length} offen</span></button>`;
+
+  const label = i => esc(i.task.name) + (i.task.times > 1 ? ` <span class="muted small">${i.slot}/${i.task.times}</span>` : '');
+  const key = i => `data-task="${esc(i.task.id)}" data-slot="${i.slot}" data-member="${esc(i.memberId ?? '')}"`;
+  const pflichtRows = must.map(i => { const m = member(i.memberId); return `
+    <button class="row ${i.h?'done':''}" style="--c:${esc(m?.color)}" data-act="toggle" ${key(i)}>
+      <span class="emo">${esc(m?.emoji)}</span>
+      <span class="what"><b>${label(i)}</b><span class="muted small">${esc(m?.name)}</span></span>
+      <span class="pts">${i.task.points} P</span>
+      <span class="pill ${i.h?'done':'open'}">${i.h?'🟢 Erledigt':'🟡 Offen'}</span>
+    </button>`; }).join('');
+  const bonusRows = bonus.map(i => `
+    <button class="row ${i.h?'done':''}" data-act="toggle" ${key(i)}>
+      <span class="what"><b>${label(i)}</b></span>
+      <span class="pts">${i.task.points} P</span>
+      ${i.h ? `<span class="pill done">${mLabel(i.h.memberId)}</span>` : '<span class="pill open">Frei</span>'}
+    </button>`).join('');
+
+  if (!activeMembers().length) return `<h1>${esc(state.familyName)}</h1><div class="empty" style="margin-top:16px">Noch keine Familienmitglieder. Lege sie unter ⚙️ Verwaltung → Familie an.</div>`;
+  return `
+    <div class="top">
+      <h1>${esc(state.familyName)}</h1>
+      <div class="stats">
+        <div class="stat"><span>📅 Heute</span><b>${fmtDate(day)}</b></div>
+        <div class="stat"><span>📋 Offene Aufgaben</span><b>${open}</b></div>
+      </div>
+    </div>
+    <div class="tiles">${tiles}</div>
+    <div class="cols">
+      <section><h2>Pflichtaufgaben</h2><div class="list">${pflichtRows || '<div class="empty">Heute keine Pflichtaufgaben.</div>'}</div></section>
+      <section><h2>Bonusaufgaben</h2><div class="list">${bonusRows || '<div class="empty">Heute keine Bonusaufgaben.</div>'}</div></section>
+    </div>`;
+}
+
+function viewRewards() {
+  const pts = activeMembers().map(m => `
+    <div class="tile" style="--c:${esc(m.color)}"><span class="emo">${esc(m.emoji)}</span><span class="name">${esc(m.name)}</span>
+      <span class="sub" style="font-size:19px;color:var(--ink)"><b>${balance(m.id)}</b> Punkte</span></div>`).join('');
+  const rw = state.rewards.filter(r => r.active).sort((a,b) => a.cost-b.cost).map(r =>
+    `<button class="reward" data-act="redeem" data-id="${esc(r.id)}"><b>${esc(r.name)}</b><span>${r.cost} Punkte</span></button>`).join('');
+  const last = [...state.rewardHistory].sort((a,b) => b.date.localeCompare(a.date)).slice(0,5);
+  return `
+    <div class="top"><h1>Belohnungen 🎁</h1></div>
+    <div class="tiles">${pts}</div>
+    <h2>Einlösen</h2>
+    <div class="rewards" style="margin-bottom:22px">${rw || '<div class="empty">Noch keine Belohnungen angelegt.</div>'}</div>
+    <div class="panel"><h2>Zuletzt eingelöst</h2>
+      ${last.length ? `<table><thead><tr><th>Datum</th><th>Person</th><th>Belohnung</th></tr></thead><tbody>
+      ${last.map(h => `<tr><td>${fmtShort(h.date)}</td><td>${mLabel(h.memberId)}</td><td>${esc(h.name)}</td></tr>`).join('')}
+      </tbody></table>` : '<div class="muted">Noch nichts eingelöst.</div>'}
+    </div>`;
+}
+
+function bars(rows, unit='') {
+  if (!rows.length) return '<div class="muted">Noch keine Daten.</div>';
+  const max = Math.max(1, ...rows.map(r => r.v));
+  return `<div class="bars">${rows.map(r => `
+    <div class="bar" title="${esc(r.plain)}: ${r.v}${unit}"><span class="lbl">${r.l}</span>
+      <span class="track"><span class="fill" style="display:block;width:${r.v/max*100}%"></span></span>
+      <span class="val">${r.v}${unit}</span></div>`).join('')}</div>`;
+}
+function viewStats() {
+  const t = today(), from = addDays(t, -30);
+  const done = state.taskHistory.filter(h => h.status === 'Erledigt');
+  const label = m => ({ l:`${esc(m.emoji)} ${esc(m.name)}`, plain:m.name });
+  const quote = activeMembers().map(m => {
+    const hs = state.taskHistory.filter(h => h.memberId === m.id && h.date >= from && h.date < t
+      && state.tasks.find(x => x.id === h.taskId)?.type !== 'Bonus');
+    const ok = hs.filter(h => h.status === 'Erledigt').length;
+    return { ...label(m), v: hs.length ? Math.round(ok / hs.length * 100) : 0 };
+  });
+  const rank = activeMembers().map(m => ({ ...label(m),
+    v: done.filter(h => h.memberId === m.id).reduce((a,h) => a + Number(h.points), 0) })).sort((a,b) => b.v-a.v);
+  const months = [];
+  const now = new Date();
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth()-i, 1);
+    const ym = `${d.getFullYear()}-${pad(d.getMonth()+1)}`;
+    const name = `${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
+    months.push({ l:name, plain:name, v: done.filter(h => h.date.startsWith(ym)).reduce((a,h) => a + Number(h.points), 0) });
+  }
+  const count = (arr, f) => { const c = {}; arr.forEach(x => c[f(x)] = (c[f(x)]||0)+1);
+    return Object.entries(c).sort((a,b) => b[1]-a[1]).slice(0,5).map(([k,v]) => ({ l:esc(k), plain:k, v })); };
+  return `
+    <div class="top"><h1>Statistik 📊</h1></div>
+    <div class="grid2">
+      <div class="panel"><h2>Erledigungsquote</h2><p class="muted small" style="margin-top:-8px">Pflichtaufgaben, letzte 30 Tage</p>${bars(quote,' %')}</div>
+      <div class="panel"><h2>Familienranking</h2><p class="muted small" style="margin-top:-8px">Gesammelte Punkte insgesamt</p>${bars(rank)}</div>
+      <div class="panel"><h2>Punkte pro Monat</h2><p class="muted small" style="margin-top:-8px">Ganze Familie</p>${bars(months)}</div>
+      <div class="panel"><h2>Top-Aufgaben</h2><p class="muted small" style="margin-top:-8px">Anzahl erledigt</p>${bars(count(done, h => h.name))}</div>
+      <div class="panel"><h2>Meiste Belohnungen</h2><p class="muted small" style="margin-top:-8px">Anzahl eingelöst</p>${bars(count(state.rewardHistory, h => h.name))}</div>
+    </div>`;
+}
+
+function viewAdmin() {
+  if (!ui.unlocked) return `
+    <div class="top"><h1>Verwaltung ⚙️</h1></div>
+    <div class="panel" style="max-width:420px">
+      <h2>Nur für Erwachsene</h2>
+      <p class="muted">Bitte PIN eingeben. Im Mockup ist sie <b>1234</b>.</p>
+      <form data-form="unlock">
+        <label class="field"><span>PIN</span><input name="pin" type="password" inputmode="numeric" autocomplete="off"></label>
+        <button class="btn">Entsperren</button>
+      </form>
+    </div>`;
+  const tabs = [['tasks','Aufgaben'],['rewards','Belohnungen'],['taskHist','Aufgabenhistorie'],['rewardHist','Belohnungshistorie'],['family','Familie'],['settings','Einstellungen']];
+  const body = { tasks:adminTasks, rewards:adminRewards, taskHist:adminTaskHist, rewardHist:adminRewardHist, family:adminFamily, settings:adminSettings }[ui.admin]();
+  return `<div class="top"><h1>Verwaltung ⚙️</h1><button class="btn ghost" data-act="lock">🔒 Sperren</button></div>
+    <div class="subnav">${tabs.map(([k,l]) => `<button class="${ui.admin===k?'on':''}" data-act="adminTab" data-v="${k}">${l}</button>`).join('')}</div>
+    ${body}`;
+}
+const recLabel = t => t.rec === 'taeglich' ? 'Täglich' : t.rec === 'wochentag' ? 'Wochentag' : 'Alle X Tage';
+const personLabel = t => t.type === 'Bonus' ? 'Offen' : t.person === 'alle' ? 'Alle' : esc(mName(t.person));
+
+function adminTasks() {
+  return `<div class="panel"><div class="bar-head"><h2>Aufgaben</h2><button class="btn" data-act="taskForm">+ Neue Aufgabe</button></div>
+  <div class="scroll"><table><thead><tr><th>Aktiv</th><th>Aufgabe</th><th>Typ</th><th>Person</th><th class="num">Punkte</th><th>Wiederholung</th><th class="num">Intervall</th><th>Wochentag</th><th class="num">Mal pro Tag</th></tr></thead><tbody>
+  ${state.tasks.map(t => `<tr class="click ${t.active?'':'inactive'}" data-act="taskForm" data-id="${esc(t.id)}">
+    <td>${t.active?'Ja':'Nein'}</td><td>${esc(t.name)}</td><td>${esc(t.type)}</td><td>${personLabel(t)}</td><td class="num">${t.points}</td>
+    <td>${recLabel(t)}</td><td class="num">${t.rec==='intervall'?t.interval:''}</td><td>${t.rec==='wochentag'?WEEKDAYS[t.weekday]:''}</td><td class="num">${t.times}</td></tr>`).join('')}
+  </tbody></table></div><p class="muted small">Zeile antippen zum Bearbeiten.</p></div>`;
+}
+function adminRewards() {
+  return `<div class="panel"><div class="bar-head"><h2>Belohnungen</h2><button class="btn" data-act="rewardForm">+ Neue Belohnung</button></div>
+  <table><thead><tr><th>Aktiv</th><th>Belohnung</th><th class="num">Kosten</th></tr></thead><tbody>
+  ${state.rewards.map(r => `<tr class="click ${r.active?'':'inactive'}" data-act="rewardForm" data-id="${esc(r.id)}"><td>${r.active?'Ja':'Nein'}</td><td>${esc(r.name)}</td><td class="num">${r.cost}</td></tr>`).join('')}
+  </tbody></table><p class="muted small">Zeile antippen zum Bearbeiten.</p></div>`;
+}
+function adminTaskHist() {
+  const rows = [...state.taskHistory].sort((a,b) => b.date.localeCompare(a.date)).slice(0,100);
+  return `<div class="panel"><div class="bar-head"><h2>Aufgabenhistorie</h2><span class="muted small">Neueste ${rows.length} von ${state.taskHistory.length}</span></div>
+  <div class="scroll"><table><thead><tr><th>Datum</th><th>Person</th><th>Aufgabe</th><th>Status</th><th class="num">Punkte</th></tr></thead><tbody>
+  ${rows.map(h => `<tr class="click" data-act="taskHistForm" data-id="${esc(h.id)}"><td>${fmtShort(h.date)}</td><td>${mLabel(h.memberId)}</td><td>${esc(h.name)}</td>
+    <td><span class="pill ${h.status==='Erledigt'?'done':'miss'}">${esc(h.status)}</span></td><td class="num">${h.points}</td></tr>`).join('')}
+  </tbody></table></div><p class="muted small">Zeile antippen zum Ändern oder Löschen. Punkte werden automatisch neu berechnet.</p></div>`;
+}
+function adminRewardHist() {
+  const rows = [...state.rewardHistory].sort((a,b) => b.date.localeCompare(a.date)).slice(0,100);
+  return `<div class="panel"><div class="bar-head"><h2>Belohnungshistorie</h2></div>
+  <div class="scroll"><table><thead><tr><th>Datum</th><th>Person</th><th>Belohnung</th><th class="num">Kosten</th></tr></thead><tbody>
+  ${rows.map(h => `<tr class="click" data-act="rewardHistForm" data-id="${esc(h.id)}"><td>${fmtShort(h.date)}</td><td>${mLabel(h.memberId)}</td><td>${esc(h.name)}</td><td class="num">-${h.cost}</td></tr>`).join('')}
+  </tbody></table></div><p class="muted small">Zeile antippen zum Ändern oder Löschen.</p></div>`;
+}
+function adminFamily() {
+  return `<div class="panel"><div class="bar-head"><h2>Familie</h2><button class="btn" data-act="memberForm">+ Neues Mitglied</button></div>
+  <table><thead><tr><th></th><th>Name</th><th class="num">Punkte</th></tr></thead><tbody>
+  ${activeMembers().map(m => `<tr class="click" data-act="memberForm" data-id="${esc(m.id)}"><td style="font-size:26px;width:50px">${esc(m.emoji)}</td><td>${esc(m.name)}</td><td class="num">${balance(m.id)}</td></tr>`).join('')}
+  </tbody></table></div>`;
+}
+function adminSettings() {
+  return `<div class="panel" style="max-width:560px"><h2>Allgemein</h2>
+    <form data-form="settings">
+      <label class="field"><span>Name der Familie</span><input name="familyName" value="${esc(state.familyName)}" required></label>
+      <label class="field"><span>Admin-PIN</span><input name="pin" value="${esc(state.pin)}" inputmode="numeric" required></label>
+      <button class="btn">Speichern</button>
+    </form></div>
+  <div class="panel" style="max-width:560px"><h2>Datensicherung</h2>
+    <p class="muted">Die Daten liegen nur auf diesem Gerät. Eine Sicherung als Datei schützt vor Datenverlust.</p>
+    <div class="actions" style="justify-content:flex-start;margin:0">
+      <button class="btn ghost" data-act="exportData">Sicherung speichern</button>
+      <label class="btn ghost" style="display:inline-flex;align-items:center;cursor:pointer">Sicherung einspielen
+        <input id="importFile" type="file" accept="application/json,.json" class="hidden"></label>
+    </div></div>
+  <div class="panel" style="max-width:560px"><h2>Daten</h2>
+    <div class="actions" style="justify-content:flex-start;margin:0">
+      <button class="btn ghost" data-act="resetDemo">Demodaten neu laden</button>
+      <button class="btn danger" data-act="resetEmpty">Alles löschen und leer starten</button>
+    </div></div>`;
+}
+
+/* --------- Dialoge --------- */
+let onSubmit = null;
+function modal(html, submit) {
+  onSubmit = submit || null;
+  $('#modal').innerHTML = `<div class="veil" data-act="veil"><div class="modal" role="dialog" aria-modal="true">${html}</div></div>`;
+}
+function closeModal() { $('#modal').innerHTML = ''; onSubmit = null; }
+function toast(msg) {
+  $('#toast').innerHTML = `<div class="toast">${esc(msg)}</div>`;
+  clearTimeout(toast.t); toast.t = setTimeout(() => $('#toast').innerHTML = '', 2600);
+}
+const formButtons = (del) => `<div class="actions">
+  ${del ? '<button type="button" class="btn danger left" data-act="del">Löschen</button>' : ''}
+  <button type="button" class="btn ghost" data-act="close">Abbrechen</button><button class="btn">Speichern</button></div>`;
+const options = (list, cur) => list.map(([v,l]) => `<option value="${esc(v)}" ${String(v)===String(cur)?'selected':''}>${esc(l)}</option>`).join('');
+const memberOptions = cur => options([
+  ...activeMembers().map(m => [m.id, m.name]),
+  ...(cur && member(cur) && !member(cur).active ? [[cur, member(cur).name + ' (entfernt)']] : []),
+], cur);
+const number = v => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
+
+function taskForm(id) {
+  const t = state.tasks.find(x => x.id === id) || { active:true, name:'', type:'Pflicht', person:activeMembers()[0]?.id ?? 'alle', points:1, rec:'taeglich', interval:3, weekday:1, times:1 };
+  modal(`<h2>${id?'Aufgabe bearbeiten':'Neue Aufgabe'}</h2><form data-form="modal">
+    <label class="check"><input type="checkbox" name="active" ${t.active?'checked':''}> Aktiv</label>
+    <label class="field"><span>Aufgabe</span><input name="name" value="${esc(t.name)}" required></label>
+    <div class="two">
+      <label class="field"><span>Typ</span><select name="type">${options([['Pflicht','Pflicht'],['Bonus','Bonus']],t.type)}</select></label>
+      <label class="field" id="f-person"><span>Person</span><select name="person">${options([['alle','Alle'],...activeMembers().map(m=>[m.id,m.name])],t.person)}</select></label>
+    </div>
+    <div class="two">
+      <label class="field"><span>Punkte</span><input name="points" type="number" min="0" value="${t.points}" required></label>
+      <label class="field"><span>Mal pro Tag</span><input name="times" type="number" min="1" max="10" value="${t.times}" required></label>
+    </div>
+    <div class="two">
+      <label class="field"><span>Wiederholung</span><select name="rec">${options([['taeglich','Täglich'],['wochentag','Wochentag'],['intervall','Alle X Tage']],t.rec)}</select></label>
+      <label class="field" id="f-weekday"><span>Wochentag</span><select name="weekday">${options(WEEKDAYS.map((d,i)=>[i,d]),t.weekday)}</select></label>
+      <label class="field" id="f-interval"><span>Alle wie viele Tage?</span><input name="interval" type="number" min="1" value="${t.interval}"></label>
+    </div>
+    ${formButtons(!!id)}</form>`, fd => {
+      const data = { active:fd.has('active'), name:fd.get('name').trim(), type:fd.get('type'),
+        person: fd.get('type')==='Bonus' ? 'offen' : fd.get('person'), points:number(fd.get('points')),
+        times:Math.max(1,number(fd.get('times'))), rec:fd.get('rec'), weekday:number(fd.get('weekday')), interval:Math.max(1,number(fd.get('interval'))) };
+      if (id) Object.assign(t, data); else state.tasks.push({ id:uid(), start:today(), ...data });
+    });
+  modal.del = id ? () => { state.tasks = state.tasks.filter(x => x.id !== id); } : null;
+  const sync = () => {
+    const f = $('#modal form');
+    $('#f-person').classList.toggle('hidden', f.type.value === 'Bonus');
+    $('#f-weekday').classList.toggle('hidden', f.rec.value !== 'wochentag');
+    $('#f-interval').classList.toggle('hidden', f.rec.value !== 'intervall');
+  };
+  $('#modal form').addEventListener('change', sync); sync();
+}
+function rewardForm(id) {
+  const r = state.rewards.find(x => x.id === id) || { active:true, name:'', cost:25 };
+  modal(`<h2>${id?'Belohnung bearbeiten':'Neue Belohnung'}</h2><form data-form="modal">
+    <label class="check"><input type="checkbox" name="active" ${r.active?'checked':''}> Aktiv</label>
+    <label class="field"><span>Belohnung</span><input name="name" value="${esc(r.name)}" required></label>
+    <label class="field"><span>Kosten (Punkte)</span><input name="cost" type="number" min="0" value="${r.cost}" required></label>
+    ${formButtons(!!id)}</form>`, fd => {
+      const data = { active:fd.has('active'), name:fd.get('name').trim(), cost:number(fd.get('cost')) };
+      if (id) Object.assign(r, data); else state.rewards.push({ id:uid(), ...data });
+    });
+  modal.del = id ? () => { state.rewards = state.rewards.filter(x => x.id !== id); } : null;
+}
+function memberForm(id) {
+  const m = member(id) || { name:'', emoji:EMOJIS[0], color:COLORS[activeMembers().length % COLORS.length] };
+  modal(`<h2>${id?'Mitglied bearbeiten':'Neues Mitglied'}</h2><form data-form="modal">
+    <label class="field"><span>Name</span><input name="name" value="${esc(m.name)}" required></label>
+    <label class="field"><span>Emoji</span><input name="emoji" list="emojis" value="${esc(m.emoji)}" required></label>
+    <datalist id="emojis">${EMOJIS.map(e => `<option value="${e}">`).join('')}</datalist>
+    <div class="field"><span>Farbe</span><div class="swatches">${COLORS.map(c => `<label><input type="radio" name="color" value="${c}" ${c===m.color?'checked':''}><i style="background:${c}"></i></label>`).join('')}</div></div>
+    ${formButtons(!!id)}</form>`, fd => {
+      const data = { name:fd.get('name').trim(), emoji:fd.get('emoji').trim(), color:fd.get('color') || m.color };
+      if (id) Object.assign(m, data); else state.members.push({ id:uid(), active:true, ...data });
+    });
+  // Entfernte Mitglieder bleiben in der Historie sichtbar und verschwinden nur aus dem Alltag.
+  modal.del = id ? () => { m.active = false; if (ui.filter === id) ui.filter = 'alle'; } : null;
+}
+function taskHistForm(id) {
+  const h = state.taskHistory.find(x => x.id === id);
+  modal(`<h2>Eintrag ändern</h2><form data-form="modal">
+    <label class="field"><span>Datum</span><input name="date" type="date" value="${esc(h.date)}" required></label>
+    <label class="field"><span>Person</span><select name="memberId">${memberOptions(h.memberId)}</select></label>
+    <label class="field"><span>Aufgabe</span><input name="name" value="${esc(h.name)}" required></label>
+    <div class="two">
+      <label class="field"><span>Status</span><select name="status">${options([['Erledigt','Erledigt'],['Nicht erledigt','Nicht erledigt']],h.status)}</select></label>
+      <label class="field"><span>Punkte</span><input name="points" type="number" min="0" value="${h.points}" required></label>
+    </div>
+    ${formButtons(true)}</form>`, fd => {
+      const status = fd.get('status');
+      Object.assign(h, { date:fd.get('date'), memberId:fd.get('memberId'), name:fd.get('name').trim(), status,
+        points: status === 'Erledigt' ? number(fd.get('points')) : 0 });
+    });
+  modal.del = () => { state.taskHistory = state.taskHistory.filter(x => x.id !== id); };
+}
+function rewardHistForm(id) {
+  const h = state.rewardHistory.find(x => x.id === id);
+  modal(`<h2>Eintrag ändern</h2><form data-form="modal">
+    <label class="field"><span>Datum</span><input name="date" type="date" value="${esc(h.date)}" required></label>
+    <label class="field"><span>Person</span><select name="memberId">${memberOptions(h.memberId)}</select></label>
+    <label class="field"><span>Belohnung</span><input name="name" value="${esc(h.name)}" required></label>
+    <label class="field"><span>Kosten</span><input name="cost" type="number" min="0" value="${h.cost}" required></label>
+    ${formButtons(true)}</form>`, fd => {
+      Object.assign(h, { date:fd.get('date'), memberId:fd.get('memberId'), name:fd.get('name').trim(), cost:number(fd.get('cost')) });
+    });
+  modal.del = () => { state.rewardHistory = state.rewardHistory.filter(x => x.id !== id); };
+}
+function whoDidIt(inst) {
+  modal(`<h2>Wer hat „${esc(inst.task.name)}“ erledigt?</h2><div class="tiles" style="margin:0 0 8px">
+    ${activeMembers().map(m => `<button class="tile" data-act="bonusBy" data-id="${m.id}"><span class="emo">${esc(m.emoji)}</span><span class="name">${esc(m.name)}</span></button>`).join('')}
+    </div><div class="actions"><button class="btn ghost" data-act="close">Abbrechen</button></div>`);
+  modal.inst = inst;
+}
+function redeem(r) {
+  modal(`<h2>Wer löst ${esc(r.name)} ein?</h2><p class="muted">Kostet ${r.cost} Punkte.</p><div class="tiles" style="margin:0 0 8px">
+    ${activeMembers().map(m => { const b = balance(m.id); return `<button class="tile" data-act="redeemBy" data-id="${m.id}" ${b<r.cost?'disabled':''}>
+      <span class="emo">${esc(m.emoji)}</span><span class="name">${esc(m.name)}</span><span class="sub">${b} Punkte</span></button>`; }).join('')}
+    </div><div class="actions"><button class="btn ghost" data-act="close">Abbrechen</button></div>`);
+  modal.reward = r;
+}
+
+/* --------- Ereignisse --------- */
+function toggle(btn) {
+  const day = today();
+  const task = state.tasks.find(t => t.id === btn.dataset.task);
+  const inst = { task, slot:Number(btn.dataset.slot), memberId: btn.dataset.member || null };
+  const h = findEntry(day, inst);
+  if (h) { state.taskHistory = state.taskHistory.filter(x => x !== h); save(); render(); return; }
+  if (task.type === 'Pflicht') { state.taskHistory.push(entry(day, inst, inst.memberId, true)); save(); render(); return; }
+  if (ui.filter !== 'alle') { state.taskHistory.push(entry(day, inst, ui.filter, true)); save(); render(); toast(`+${task.points} Punkte für ${mName(ui.filter)}`); return; }
+  whoDidIt(inst);
+}
+document.addEventListener('click', e => {
+  const el = e.target.closest('[data-act]');
+  if (!el) return;
+  const a = el.dataset.act, id = el.dataset.id;
+  if (a === 'veil') { if (e.target === el) closeModal(); return; }
+  const acts = {
+    nav() { ui.view = el.dataset.v; render(); },
+    filter() { ui.filter = id; render(); },
+    toggle() { toggle(el); },
+    lock() { ui.unlocked = false; render(); },
+    adminTab() { ui.admin = el.dataset.v; render(); },
+    taskForm() { taskForm(id); }, rewardForm() { rewardForm(id); }, memberForm() { memberForm(id); },
+    taskHistForm() { taskHistForm(id); }, rewardHistForm() { rewardHistForm(id); },
+    close() { closeModal(); },
+    del() { if (!confirm('Wirklich löschen?')) return; modal.del(); save(); closeModal(); render(); },
+    redeem() { redeem(state.rewards.find(r => r.id === id)); },
+    bonusBy() { const i = modal.inst; state.taskHistory.push(entry(today(), i, id, true)); save(); closeModal(); render(); toast(`+${i.task.points} Punkte für ${mName(id)}`); },
+    redeemBy() { const r = modal.reward; state.rewardHistory.push({ id:uid(), date:today(), memberId:id, name:r.name, cost:r.cost }); save(); closeModal(); render(); toast(`${r.name} für ${mName(id)} eingelöst`); },
+    exportData() {
+      const url = URL.createObjectURL(new Blob([JSON.stringify(state, null, 2)], { type:'application/json' }));
+      const a = document.createElement('a');
+      a.href = url; a.download = `punktlandung-${today()}.json`;
+      document.body.append(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
+    },
+    resetDemo() { if (confirm('Alle Daten durch Demodaten ersetzen?')) { state = demoState(); save(); ui.filter='alle'; render(); } },
+    resetEmpty() { if (confirm('Wirklich alle Daten löschen?')) { state = emptyState(); save(); ui.filter='alle'; render(); } },
+  };
+  acts[a]?.();
+});
+document.addEventListener('submit', e => {
+  e.preventDefault();
+  const form = e.target, fd = new FormData(form), kind = form.dataset.form;
+  if (kind === 'unlock') {
+    if (fd.get('pin') === state.pin) { ui.unlocked = true; render(); } else toast('PIN stimmt nicht');
+  } else if (kind === 'settings') {
+    state.familyName = fd.get('familyName').trim(); state.pin = fd.get('pin').trim(); save(); render(); toast('Gespeichert');
+  } else if (kind === 'modal' && onSubmit) {
+    onSubmit(fd); save(); closeModal(); render();
+  }
+});
+
+document.addEventListener('change', async e => {
+  if (e.target.id !== 'importFile' || !e.target.files[0]) return;
+  try {
+    const data = JSON.parse(await e.target.files[0].text());
+    const lists = ['members','tasks','rewards','taskHistory','rewardHistory'];
+    if (!data || !lists.every(k => Array.isArray(data[k])) || !/^\d{4}-\d{2}-\d{2}$/.test(data.lastClosed)) throw 0;
+    if (!confirm('Alle aktuellen Daten durch diese Sicherung ersetzen?')) return;
+    state = { ...emptyState(), ...data };
+    closeDays(); save(); ui.filter = 'alle'; render(); toast('Sicherung eingespielt');
+  } catch { toast('Diese Datei ist keine gültige Sicherung'); }
+  finally { e.target.value = ''; }
+});
+
+// Tablet bleibt über Nacht an: Datumswechsel erkennen
+setInterval(() => { if (ui.day !== today()) { ui.day = today(); closeDays(); render(); } }, 60000);
+
+navigator.storage?.persist?.().catch(() => {}); // Browser bitten, die Daten nicht aufzuräumen
+closeDays();
+save();
+render();
+</script>
+</body>
+</html>
