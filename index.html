@@ -216,6 +216,7 @@
   .stepper { display: grid; grid-template-columns: 50px 1fr 50px; gap: 6px; }
   .stepper button { background: var(--chip); border-radius: 11px; font-size: 24px; text-align: center; min-height: 50px; }
   .stepper input { text-align: center; -moz-appearance: textfield; }
+  .field .stepper input:not([type=checkbox]):not([type=radio]):not([type=file]) { padding: 12px 2px; min-width: 0; }
   .stepper input::-webkit-outer-spin-button, .stepper input::-webkit-inner-spin-button { -webkit-appearance: none; }
 
   /* Auswahl-Kacheln: Symbole, Personen, Wochentage, Typ */
@@ -331,10 +332,10 @@
 <div id="modal"></div>
 <div id="toast" aria-live="polite"></div>
 
-<script src="icons.js?v=f4f1b867"></script>
+<script src="icons.js?v=86dae2c4"></script>
 <script>
 'use strict';
-const APP_VERSION = 'f4f1b867'; // setzt tools/embed-assets.py
+const APP_VERSION = '86dae2c4'; // setzt tools/embed-assets.py
 
 /* ==========================================================================
    Speicher-Schnittstelle
