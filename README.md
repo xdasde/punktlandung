@@ -11,3 +11,5 @@ Alle Daten bleiben lokal auf dem Gerät. In diesem Repository liegt nur die App 
 **Daten teilen:** Unter Verwaltung → Einstellungen lässt sich der komplette Stand als JSON-Datei exportieren und auf einem anderen Gerät importieren. Der Import ersetzt alle Daten dort, auch die PIN. Die Datei enthält eure Daten und die PIN im Klartext und gehört nicht in ein öffentliches Repository.
 
 **Grafiken ändern:** Die Dateien in `assets/` sind in `index.html` eingebettet, damit die App eine einzelne Datei bleibt. Vor jedem Release `python3 tools/embed-assets.py` ausführen: Das bettet die Grafiken ein und setzt die neue Version, mit der sich installierte Apps selbst aktualisieren.
+
+**Aufgaben-Icons:** Die 44 Vorlagen-Icons aus `tools/task-icons.txt` stammen aus der Schrift Noto Color Emoji (SIL Open Font License) und werden mit `tools/render-task-icons.js` als Bilder erzeugt, damit sie auf allen Geräten gleich aussehen.
