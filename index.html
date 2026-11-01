@@ -177,9 +177,21 @@
   .col i { display: block; width: 100%; max-width: 22px; background: var(--primary); border-radius: 4px 4px 0 0; }
   .col em { font-style: normal; color: var(--ink); font-variant-numeric: tabular-nums; }
   .rank { display: flex; flex-direction: column; gap: 9px; }
-  .rank div { display: flex; align-items: center; gap: 10px; }
+  .rank .rk { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 44px; }
   .rank .t { flex: 1; min-width: 0; }
   .rank b { font-variant-numeric: tabular-nums; font-weight: 650; }
+  button.bar { width: 100%; min-height: 40px; }
+  .ph-head { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; padding-right: 40px; }
+  .ph-head h2 { margin: 0; padding: 0; }
+  .ph-sum { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 14px; }
+  .ph-sum div { background: var(--chip); border-radius: 12px; padding: 8px; text-align: center; font-size: 13.5px; color: var(--gray); }
+  .ph-sum b { display: block; font-size: 20px; color: var(--ink); font-weight: 650; font-variant-numeric: tabular-nums; }
+  .ph-row { display: flex; align-items: center; gap: 10px; padding: 10px 2px; border-bottom: 1px solid var(--line); }
+  .ph-row:last-child { border-bottom: 0; }
+  .ph-row .t { flex: 1; min-width: 0; }
+  .ph-row .d { display: block; font-size: 14px; color: var(--gray); }
+  .ph-row b { white-space: nowrap; font-weight: 650; font-variant-numeric: tabular-nums; color: var(--primary); }
+  .ph-row b.minus { color: #A83A2C; }
   .medal { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 700; background: var(--chip); flex: none; }
   .medal.m1 { background: var(--honey); } .medal.m2 { background: #D8DCE1; } .medal.m3 { background: #EDB98C; }
 
@@ -332,10 +344,10 @@
 <div id="modal"></div>
 <div id="toast" aria-live="polite"></div>
 
-<script src="icons.js?v=86dae2c4"></script>
+<script src="icons.js?v=07ad0181"></script>
 <script>
 'use strict';
-const APP_VERSION = '86dae2c4'; // setzt tools/embed-assets.py
+const APP_VERSION = '07ad0181'; // setzt tools/embed-assets.py
 
 /* ==========================================================================
    Speicher-Schnittstelle
@@ -958,16 +970,16 @@ function viewRewards() {
 function bars(rows) {
   if (!rows.length) return '<div class="muted">Noch keine Daten.</div>';
   const max = Math.max(1, ...rows.map(r => r.max ?? r.v));
-  return `<div class="bars">${rows.map(r => `
-    <div class="bar" style="${r.c ? `--c:${esc(r.c)}` : ''}" title="${esc(r.plain)}: ${esc(r.text ?? r.v)}"><span class="lbl">${r.l}</span>
+  return `<div class="bars">${rows.map(r => { const tag = r.id ? 'button' : 'div'; return `
+    <${tag} class="bar" ${r.id ? `data-act="pointHistory" data-id="${esc(r.id)}"` : ''} style="${r.c ? `--c:${esc(r.c)}` : ''}" title="${esc(r.plain)}: ${esc(r.text ?? r.v)}"><span class="lbl">${r.l}</span>
       <span class="track"><span class="fill" style="width:${r.v/max*100}%"></span></span>
-      <span class="val">${esc(r.text ?? r.v)}</span></div>`).join('')}</div>`;
+      <span class="val">${esc(r.text ?? r.v)}</span></${tag}>`; }).join('')}</div>`;
 }
 function viewStats() {
   const t = today(), from = addDays(t, -30);
   const done = state.taskHistory.filter(h => h.status === 'Erledigt');
   const doneTasks = done.filter(isTaskEntry);
-  const label = m => ({ l:`${avatar(m,'xs')}<span>${esc(m.name)}</span>`, plain:m.name, c:m.color });
+  const label = m => ({ l:`${avatar(m,'xs')}<span>${esc(m.name)}</span>`, plain:m.name, c:m.color, id:m.id });
   const isMust = h => isTaskEntry(h) && state.tasks.find(x => x.id === h.taskId)?.type !== 'Bonus';
   const window30 = state.taskHistory.filter(h => h.date >= from && h.date < t && isMust(h));
   const quote = activeMembers().map(m => {
@@ -995,8 +1007,8 @@ function viewStats() {
         <div class="donut"><svg viewBox="0 0 180 180" role="img" aria-label="${pct} Prozent erledigt"><circle cx="90" cy="90" r="80" stroke="#E3F0EB"/><circle cx="90" cy="90" r="80" stroke="#216D5D" stroke-linecap="round" stroke-dasharray="${circ*pct/100} ${circ}"/></svg>
         <div><b>${pct}%</b><span class="muted small">erledigt</span></div></div></div>
       <div class="panel"><h2>Aufgaben je Mitglied</h2><p class="muted small sub-h">Erledigt von fällig, letzte 30 Tage</p>${bars(quote)}</div>` : ''}
-      <div class="panel"><h2>Rangliste</h2><p class="muted small sub-h">Gesammelte Punkte insgesamt</p>
-        <div class="rank">${rank.map((r,i) => `<div><span class="medal m${i+1}">${i+1}</span>${avatar(r.m,'sm')}<span class="t">${esc(r.m.name)}</span><b>${r.v}</b></div>`).join('')}</div></div>
+      <div class="panel"><h2>Rangliste</h2><p class="muted small sub-h">Gesammelte Punkte. Name antippen für die Punkte-Historie.</p>
+        <div class="rank">${rank.map((r,i) => `<button class="rk" data-act="pointHistory" data-id="${esc(r.m.id)}"><span class="medal m${i+1}">${i+1}</span>${avatar(r.m,'sm')}<span class="t">${esc(r.m.name)}</span><b>${r.v}</b></button>`).join('')}</div></div>
       <div class="panel"><h2>Punkte pro Monat</h2><p class="muted small sub-h">Ganze Familie</p>
         <div class="columns">${months.map(m => `<div class="col" title="${m.name}: ${m.v} Punkte"><em>${m.v || ''}</em><i style="height:${m.v/mMax*118}px"></i>${m.l}</div>`).join('')}</div></div>
       <div class="panel"><h2>Top-Aufgaben</h2><p class="muted small sub-h">Anzahl erledigt</p>${bars(count(doneTasks, h => h.name))}</div>
@@ -1343,6 +1355,19 @@ function gradeForm(id) {
   const f = $('#modal form');
   f.querySelectorAll('[name=grade]').forEach(r => r.addEventListener('change', () => { f.points.value = state.grades.points[r.value] ?? 0; }));
 }
+/* Alle Punktebewegungen einer Person, neueste zuerst. Nur zum Ansehen, ändern geht in der Verwaltung. */
+function pointHistory(id) {
+  const m = member(id);
+  const plus = state.taskHistory.filter(h => h.memberId === id && h.status === 'Erledigt' && Number(h.points));
+  const minus = state.rewardHistory.filter(h => h.memberId === id);
+  const rows = [...plus.map(h => ({ date:h.date, name:h.name, v:Number(h.points) })), ...minus.map(h => ({ date:h.date, name:plainName(h.name), v:-Number(h.cost) }))]
+    .reverse().sort((a,b) => b.date.localeCompare(a.date));
+  const sum = l => l.reduce((a,r) => a + r.v, 0), shown = rows.slice(0,100);
+  modal(`<div class="ph-head">${avatar(m,'sm')}<h2>${esc(m.name)}</h2></div>${closeX}
+    <div class="ph-sum"><div><b>${balance(id)}</b>Punktestand</div><div><b>${sum(rows.filter(r => r.v > 0))}</b>Gesammelt</div><div><b>${-sum(rows.filter(r => r.v < 0))}</b>Eingelöst</div></div>
+    ${shown.length ? shown.map(r => `<div class="ph-row"><span class="t">${esc(r.name)}<span class="d">${fmtDate(r.date)}</span></span><b class="${r.v<0?'minus':''}">${r.v>0?'+':''}${r.v}</b></div>`).join('') : '<div class="empty">Noch keine Punkte.</div>'}
+    ${rows.length > 100 ? `<p class="muted small">Neueste 100 von ${rows.length} Einträgen.</p>` : ''}`);
+}
 function whoDidIt(inst) {
   modal(`<h2>Wer hat „${esc(inst.task.name)}“ erledigt?</h2>${closeX}
     ${activeMembers().map(m => `<button class="pick" data-act="bonusBy" data-id="${m.id}">${avatar(m,'sm')}<span class="t"><b>${esc(m.name)}</b></span>${pointChip(inst.task.points)}</button>`).join('')}`);
@@ -1552,6 +1577,7 @@ document.addEventListener('click', e => {
     adminTab() { ui.sel = null; ui.admin = el.dataset.v; ui.adminMenu = false; render(); scrollTo(0, 0); },
     taskForm() { if (id) taskForm(id); else presetPicker('task'); },
     gradeForm() { gradeForm(id); },
+    pointHistory() { pointHistory(id); },
     rewardForm() { if (id) rewardForm(id); else presetPicker('reward'); },
     presetBlank() { if (el.dataset.kind === 'task') taskForm(); else rewardForm(); },
     presetUse() { const i = Number(el.dataset.i); if (el.dataset.kind === 'task') taskForm(undefined, PRESETS[i]); else rewardForm(undefined, REWARD_PRESETS[i]); }, memberForm() { memberForm(id); },
