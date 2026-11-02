@@ -261,6 +261,10 @@
   .tl-dot { position: relative; z-index: 1; width: 22px; height: 22px; border-radius: 50%; background: #fff; border: 3px solid #C3C8CF; display: flex; align-items: center; justify-content: center; color: #fff; justify-self: center; }
   .tl-dot svg { font-size: 11px; stroke-width: 3.5; }
   .tl-item.done .tl-dot { background: var(--primary); border-color: var(--primary); }
+  /* Im Zeitstrahl ist Erledigtes ein Erfolg, nicht durchgestrichen */
+  .rail .row.done { background: #EEF6F1; box-shadow: var(--shadow); }
+  .rail .row.done .what b { color: var(--ink); text-decoration: none; }
+  .rail .row.done .thumb { opacity: 1; }
   .tl-item.redeem .tl-dot { background: var(--honey); border-color: var(--honey); color: var(--ink); }
   .tl-item.redeem .tl-dot svg { stroke-width: 2.4; font-size: 12px; }
   .tl-item.late .tl-dot { border-color: var(--coral); background: #FDE3E0; }
@@ -425,10 +429,10 @@
 <div id="modal"></div>
 <div id="toast" aria-live="polite"></div>
 
-<script src="icons.js?v=8e549093"></script>
+<script src="icons.js?v=448f717d"></script>
 <script>
 'use strict';
-const APP_VERSION = '8e549093'; // setzt tools/embed-assets.py
+const APP_VERSION = '448f717d'; // setzt tools/embed-assets.py
 
 /* ==========================================================================
    Speicher-Schnittstelle
@@ -1351,6 +1355,7 @@ function adminRewardHist() {
 }
 /* Neue Einträge oben ergänzen, in Alltagssprache und bei jedem Release */
 const CHANGELOG = [
+  ['1.14', 'Zeitstrahl klarer', ['Erledigte Aufgaben im Zeitstrahl sind nicht mehr durchgestrichen, sondern grün hinterlegt']],
   ['1.13', 'Aufgeräumte Listen', ['Aufgaben für mehrmals täglich stehen nur noch einmal in der Liste','Der Zähler zeigt den Fortschritt, zum Beispiel 1/3','Erledigt ist die Aufgabe erst nach dem letzten Mal']],
   ['1.12', 'Belohnungen im Zeitstrahl', ['Eingelöste Belohnungen erscheinen mit Uhrzeit im Zeitstrahl','Auch gemeinsam eingelöste Belohnungen stehen dort als ein Eintrag']],
   ['1.11', 'Echter Zeitstrahl', ['Zeitstrahl zeigt, wann eine Aufgabe wirklich erledigt wurde','Durchgehende Linie mit echten Zeitabständen und Stunden','Überfällige Aufgaben sind markiert']],
